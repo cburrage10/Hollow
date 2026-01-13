@@ -23,36 +23,42 @@ const sessionConfig = JSON.stringify({
   instructions: process.env.AGENT_INSTRUCTIONS || "You are a warm, grounded voice companion. Be concise, kind, and helpful."
 });
 
-app.post("/session", async (req, res) => {
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).send("Missing OPENAI_API_KEY on server.");
-  }
+app.post("/chat", async (req, res) => {
   try {
-    const fd = new FormData();
-    fd.set("sdp", req.body);
-    fd.set("session", sessionConfig);
+    const text = (req.body?.text || "").toString().trim();
+    if (!text) return res.json({ text: "" });
 
-    const r = await fetch("https://api.openai.com/v1/realtime/calls", {
+    const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
       },
-      body: fd,
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        input: text,
+      }),
     });
 
-    if (!r.ok) {
-      const errText = await r.text();
-      return res.status(r.status).send(errText);
+    const raw = await r.text();
+    if (!r.ok) return res.status(r.status).json({ error: raw });
+
+    const data = JSON.parse(raw);
+
+    let out = "";
+    for (const item of data.output || []) {
+      for (const c of item.content || []) {
+        if (c.type === "output_text" && c.text) out += c.text;
+      }
     }
 
-    // Send back the SDP we received from the OpenAI REST API
-    const sdp = await r.text();
-    res.type("application/sdp").send(sdp);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send(String(error));
+    res.json({ text: out || "(No text output)" });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e) });
   }
 });
+
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
