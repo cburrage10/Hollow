@@ -22,6 +22,36 @@
     <button id="btnDisconnect" disabled>Disconnect</button>
   </div>
 
+<hr style="margin:16px 0;" />
+
+<h3>Text</h3>
+<input id="msg" placeholder="Type to Hollow..." style="width:70%; padding:8px;">
+<button id="send">Send</button>
+
+<pre id="log" style="white-space:pre-wrap; margin-top:12px;"></pre>
+
+<script>
+  const log = (s) => document.getElementById("log").textContent += s + "\n";
+
+  document.getElementById("send").onclick = async () => {
+    const text = document.getElementById("msg").value.trim();
+    if (!text) return;
+
+    log("You: " + text);
+    document.getElementById("msg").value = "";
+
+    const r = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ text })
+    });
+
+    const data = await r.json();
+    log("Hollow: " + (data.text || data.error || "(no reply)"));
+  };
+</script>
+
+  
   <div class="row">
     <small>
       Tip: After connecting, just talk. Your mic audio is sent over WebRTC.  
