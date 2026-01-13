@@ -4,6 +4,9 @@ import { Redis } from "@upstash/redis";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Secret key for accessing memory endpoints (set in Railway env vars)
+const MEMORY_SECRET = process.env.MEMORY_SECRET;
+
 // Initialize Redis
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -22,7 +25,8 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 // Memory keys
 const CHAT_HISTORY_KEY = "hollow:chat_history";
 const MEMORIES_KEY = "hollow:memories";
-const MAX_HISTORY = 50; // Keep last 50 messages for context
+const MEMORY_COUNTER_KEY = "hollow:memory_counter";
+const MAX_HISTORY = 50;
 
 // Get recent chat history
 async function getChatHistory() {
@@ -46,7 +50,7 @@ async function addToHistory(role, content) {
   }
 }
 
-// Get stored memories (key facts about the user)
+// Get stored memories (now with IDs)
 async function getMemories() {
   try {
     const memories = await redis.get(MEMORIES_KEY);
@@ -66,54 +70,35 @@ async function saveMemories(memories) {
   }
 }
 
-// Extract key facts from conversation using AI
-async function extractMemories(userMessage, assistantResponse, existingMemories) {
+// Get next memory ID
+async function getNextMemoryId() {
   try {
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        instructions: `You are a memory extraction assistant. Given a conversation snippet and existing memories, extract any NEW important facts about the user that should be remembered long-term.
-
-Return a JSON array of strings - each string is a memory/fact. Only include NEW information not already in existing memories. Focus on:
-- Personal details (name, preferences, interests)
-- Important events or dates mentioned
-- Relationships and people they mention
-- Goals, projects, or things they're working on
-- Preferences and opinions
-
-If there's nothing new worth remembering, return an empty array: []
-
-ONLY return valid JSON array, nothing else.`,
-        input: `Existing memories: ${JSON.stringify(existingMemories)}
-
-User said: "${userMessage}"
-Assistant replied: "${assistantResponse}"
-
-New memories to add (JSON array):`,
-      }),
-    });
-
-    if (!r.ok) return [];
-
-    const data = await r.json();
-    let out = "";
-    for (const item of data.output || []) {
-      for (const c of item.content || []) {
-        if (c.type === "output_text" && c.text) out += c.text;
-      }
-    }
-
-    const parsed = JSON.parse(out.trim());
-    return Array.isArray(parsed) ? parsed : [];
+    const id = await redis.incr(MEMORY_COUNTER_KEY);
+    return id;
   } catch (e) {
-    console.error("Error extracting memories:", e);
-    return [];
+    console.error("Error getting memory ID:", e);
+    return Date.now();
   }
+}
+
+// Add a new memory
+async function addMemory(text) {
+  const memories = await getMemories();
+  const id = await getNextMemoryId();
+  memories.push({ id, text, createdAt: Date.now() });
+  await saveMemories(memories);
+  return id;
+}
+
+// Delete a memory by ID
+async function deleteMemory(id) {
+  const memories = await getMemories();
+  const numId = parseInt(id, 10);
+  const index = memories.findIndex(m => m.id === numId);
+  if (index === -1) return false;
+  memories.splice(index, 1);
+  await saveMemories(memories);
+  return true;
 }
 
 // Build context from history and memories
@@ -122,15 +107,14 @@ function buildContext(history, memories) {
 
   if (memories.length > 0) {
     context += "Things you remember about the user:\n";
-    memories.forEach((m, i) => {
-      context += `- ${m}\n`;
+    memories.forEach((m) => {
+      context += `- ${m.text}\n`;
     });
     context += "\n";
   }
 
   if (history.length > 0) {
     context += "Recent conversation:\n";
-    // Reverse to get chronological order (oldest first)
     const chronological = [...history].reverse();
     chronological.forEach((entry) => {
       try {
@@ -144,6 +128,19 @@ function buildContext(history, memories) {
   return context;
 }
 
+// Format memories list for display
+function formatMemoriesList(memories) {
+  if (memories.length === 0) {
+    return "No memories saved yet. Use /save <text> to add one.";
+  }
+  let list = "Saved memories:\n";
+  memories.forEach((m) => {
+    list += `[${m.id}] ${m.text}\n`;
+  });
+  list += "\nUse /forget <id> to remove a memory.";
+  return list;
+}
+
 const baseInstructions = process.env.AGENT_INSTRUCTIONS || "You are Hollow, a warm, grounded companion. Be concise, kind, and helpful.";
 
 app.post("/chat", async (req, res) => {
@@ -151,7 +148,37 @@ app.post("/chat", async (req, res) => {
     const text = (req.body?.text || "").toString().trim();
     if (!text) return res.json({ text: "" });
 
-    // Get history and memories
+    // Handle /save command
+    if (text.startsWith("/save ")) {
+      const memoryText = text.slice(6).trim();
+      if (!memoryText) {
+        return res.json({ text: "Usage: /save <text to remember>" });
+      }
+      const id = await addMemory(memoryText);
+      return res.json({ text: `Memory saved with ID [${id}]: "${memoryText}"` });
+    }
+
+    // Handle /forget command
+    if (text.startsWith("/forget ")) {
+      const id = text.slice(8).trim();
+      if (!id) {
+        return res.json({ text: "Usage: /forget <id>" });
+      }
+      const deleted = await deleteMemory(id);
+      if (deleted) {
+        return res.json({ text: `Memory [${id}] has been forgotten.` });
+      } else {
+        return res.json({ text: `No memory found with ID [${id}].` });
+      }
+    }
+
+    // Handle /memories command - list all memories
+    if (text === "/memories") {
+      const memories = await getMemories();
+      return res.json({ text: formatMemoriesList(memories) });
+    }
+
+    // Regular chat - get history and memories
     const [history, memories] = await Promise.all([
       getChatHistory(),
       getMemories(),
@@ -164,7 +191,12 @@ app.post("/chat", async (req, res) => {
 
 ${context ? "CONTEXT:\n" + context : ""}
 
-Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are.`;
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are.
+
+The user can use these commands:
+- /save <text> - Save something to your memory
+- /forget <id> - Remove a memory by ID
+- /memories - List all saved memories`;
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -197,15 +229,6 @@ Remember: You have memory of past conversations. Reference things the user has t
     await addToHistory("user", text);
     await addToHistory("assistant", response);
 
-    // Extract and save new memories (async, don't wait)
-    extractMemories(text, response, memories).then(async (newMemories) => {
-      if (newMemories.length > 0) {
-        const updated = [...memories, ...newMemories];
-        await saveMemories(updated);
-        console.log("New memories saved:", newMemories);
-      }
-    });
-
     res.json({ text: response });
   } catch (e) {
     console.error(e);
@@ -213,14 +236,20 @@ Remember: You have memory of past conversations. Reference things the user has t
   }
 });
 
-// Endpoint to view memories (for debugging)
+// Protected endpoint to view memories (requires secret key)
 app.get("/memories", async (req, res) => {
+  if (!MEMORY_SECRET || req.query.key !== MEMORY_SECRET) {
+    return res.status(403).json({ error: "Access denied" });
+  }
   const memories = await getMemories();
   res.json({ memories });
 });
 
-// Endpoint to view chat history (for debugging)
+// Protected endpoint to view chat history (requires secret key)
 app.get("/history", async (req, res) => {
+  if (!MEMORY_SECRET || req.query.key !== MEMORY_SECRET) {
+    return res.status(403).json({ error: "Access denied" });
+  }
   const history = await getChatHistory();
   res.json({ history });
 });
