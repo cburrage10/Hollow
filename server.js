@@ -36,6 +36,7 @@ app.post("/chat", async (req, res) => {
       },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
+        instructions: process.env.AGENT_INSTRUCTIONS,
         input: text,
       }),
     });
