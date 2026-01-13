@@ -6,6 +6,9 @@ const PORT = process.env.PORT || 3000;
 // Serve the tiny browser client
 app.use(express.static("public"));
 
+// Parse JSON bodies for /chat
+app.use(express.json());
+
 // Parse raw SDP payloads posted from the browser
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
