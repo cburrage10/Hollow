@@ -17,7 +17,7 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 const sessionConfig = JSON.stringify({
   type: "realtime",
   model: process.env.OPENAI_REALTIME_MODEL || "gpt-realtime",
-  audio: { output: { voice: process.env.OPENAI_VOICE || "marin" } },
+  audio: { output: { voice: process.env.OPENAI_VOICE || "echo" } },
   // Optional: set default instructions for the agent.
   // Keep these modest; you can also update them client-side via events if you want.
   instructions: process.env.AGENT_INSTRUCTIONS || "You are a warm, grounded voice companion. Be concise, kind, and helpful."
