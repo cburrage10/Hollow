@@ -172,12 +172,45 @@
     .header-btn:hover { background: #f5f5f5; }
     .header-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    #memoryCount {
+    #memoryCount, #fileCount {
       font-size: 11px;
       color: #666;
       padding: 4px 8px;
       background: #f0f0f0;
       border-radius: 12px;
+    }
+
+    .project-file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .project-file-item .file-info { flex: 1; min-width: 0; }
+    .project-file-item .file-name {
+      font-size: 14px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .project-file-item .file-meta {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+    .project-file-item .delete-file {
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 10px;
     }
 
     #chatContainer {
@@ -581,8 +614,10 @@
       </div>
       <div class="header-right">
         <span id="memoryCount">0 memories</span>
+        <span id="fileCount">0 files</span>
         <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
         <button class="header-btn" id="exportBtn" title="Export this chat">Export</button>
+        <button class="header-btn" id="filesBtn">Files</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
         <button class="header-btn" id="btnConnect">Voice</button>
@@ -657,6 +692,22 @@
         <button class="export-format-btn" id="exportTxt">📄 Text (.txt)</button>
         <button class="export-format-btn" id="exportMd">📝 Markdown (.md)</button>
         <button class="export-format-btn" id="exportJson">📋 JSON (.json)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Files Modal -->
+  <div class="modal" id="filesModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Project Files</h2>
+        <button class="close-btn" id="closeFilesModal">&times;</button>
+      </div>
+      <p style="color: #666; font-size: 13px; margin-bottom: 12px;">Upload documents that Hollow can reference in any conversation. Supports .txt, .md, .pdf, .csv, .json files.</p>
+      <div id="projectFilesList"></div>
+      <div style="margin-top: 16px; display: flex; gap: 8px;">
+        <input type="file" id="projectFileInput" accept=".txt,.md,.pdf,.csv,.json,.js,.ts,.py,.html,.css" style="display: none;">
+        <button id="uploadProjectFileBtn" style="flex: 1; padding: 10px 16px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer;">+ Upload File</button>
       </div>
     </div>
   </div>
@@ -1369,9 +1420,92 @@
     } catch (e) {}
   }
 
+  // Project Files modal
+  const filesModal = document.getElementById("filesModal");
+
+  document.getElementById("filesBtn").onclick = async () => {
+    await loadProjectFiles();
+    filesModal.classList.add('show');
+  };
+
+  document.getElementById("closeFilesModal").onclick = () => filesModal.classList.remove('show');
+  filesModal.onclick = (e) => { if (e.target === filesModal) filesModal.classList.remove('show'); };
+
+  async function loadProjectFiles() {
+    const r = await fetch("/project-files");
+    const data = await r.json();
+
+    const list = document.getElementById("projectFilesList");
+
+    if (!data.files || data.files.length === 0) {
+      list.innerHTML = '<p class="no-results">No project files uploaded yet.</p>';
+    } else {
+      list.innerHTML = data.files.map(f => {
+        const size = f.size > 1024 ? `${Math.round(f.size / 1024)}KB` : `${f.size}B`;
+        const date = new Date(f.uploadedAt).toLocaleDateString();
+        return `<div class="project-file-item">
+          <div class="file-info">
+            <div class="file-name">📄 ${f.name}</div>
+            <div class="file-meta">${size} • ${date}</div>
+          </div>
+          <button class="delete-file" data-id="${f.id}">Delete</button>
+        </div>`;
+      }).join('');
+
+      list.querySelectorAll('.delete-file').forEach(btn => {
+        btn.onclick = async () => {
+          if (confirm('Delete this file?')) {
+            await fetch(`/project-files/${btn.dataset.id}`, { method: 'DELETE' });
+            await loadProjectFiles();
+            updateFileCount();
+          }
+        };
+      });
+    }
+  }
+
+  document.getElementById("uploadProjectFileBtn").onclick = () => {
+    document.getElementById("projectFileInput").click();
+  };
+
+  document.getElementById("projectFileInput").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      showToast('Uploading...');
+      const r = await fetch("/project-files", { method: "POST", body: formData });
+      const data = await r.json();
+
+      if (data.error) {
+        showToast('Error: ' + data.error);
+      } else {
+        showToast('File uploaded!');
+        await loadProjectFiles();
+        updateFileCount();
+      }
+    } catch (err) {
+      showToast('Upload failed');
+    }
+
+    e.target.value = '';
+  };
+
+  async function updateFileCount() {
+    try {
+      const r = await fetch("/project-files/count");
+      const data = await r.json();
+      document.getElementById("fileCount").textContent = `${data.count} ${data.count === 1 ? 'file' : 'files'}`;
+    } catch (e) {}
+  }
+
   // Initialize
   loadSessions();
   updateMemoryCount();
+  updateFileCount();
 </script>
 
 <script type="module" src="./client.js"></script>

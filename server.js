@@ -60,7 +60,9 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 const MEMORIES_KEY = "hollow:memories";
 const MEMORY_COUNTER_KEY = "hollow:memory_counter";
 const SESSIONS_KEY = "hollow:sessions"; // List of all session IDs
+const PROJECT_FILES_KEY = "hollow:project_files";
 const MAX_HISTORY = 100;
+const MAX_FILE_CONTENT = 50000; // Max chars per file to store
 
 // Generate a short session ID
 function generateSessionId() {
@@ -216,8 +218,63 @@ async function deleteMemory(id) {
   return true;
 }
 
-// Build context from history and memories
-function buildContext(history, memories) {
+// === Project Files ===
+
+// Get all project files
+async function getProjectFiles() {
+  try {
+    const files = await redis.get(PROJECT_FILES_KEY);
+    return files || [];
+  } catch (e) {
+    console.error("Error getting project files:", e);
+    return [];
+  }
+}
+
+// Save project files
+async function saveProjectFiles(files) {
+  try {
+    await redis.set(PROJECT_FILES_KEY, files);
+  } catch (e) {
+    console.error("Error saving project files:", e);
+  }
+}
+
+// Add a project file
+async function addProjectFile(name, content, type = "text") {
+  const files = await getProjectFiles();
+  const id = crypto.randomBytes(4).toString("hex");
+
+  // Truncate if too long
+  const truncatedContent = content.length > MAX_FILE_CONTENT
+    ? content.substring(0, MAX_FILE_CONTENT) + "\n...[truncated]"
+    : content;
+
+  files.push({
+    id,
+    name,
+    content: truncatedContent,
+    type,
+    size: content.length,
+    uploadedAt: Date.now()
+  });
+
+  await saveProjectFiles(files);
+  return id;
+}
+
+// Delete a project file
+async function deleteProjectFile(id) {
+  const files = await getProjectFiles();
+  const index = files.findIndex(f => f.id === id);
+  if (index === -1) return false;
+  files.splice(index, 1);
+  await saveProjectFiles(files);
+  return true;
+}
+
+// Build context from history, memories, and project files
+function buildContext(history, memories, projectFiles = []) {
   let context = "";
 
   if (memories.length > 0) {
@@ -226,6 +283,13 @@ function buildContext(history, memories) {
       context += `- ${m.text}\n`;
     });
     context += "\n";
+  }
+
+  if (projectFiles.length > 0) {
+    context += "Project files available for reference:\n";
+    projectFiles.forEach((f) => {
+      context += `--- FILE: ${f.name} ---\n${f.content}\n--- END FILE ---\n\n`;
+    });
   }
 
   if (history.length > 0) {
@@ -405,6 +469,67 @@ app.get("/memory-count", async (req, res) => {
   res.json({ count: memories.length });
 });
 
+// === Project Files Endpoints ===
+
+// Get all project files (metadata only, not content)
+app.get("/project-files", async (req, res) => {
+  const files = await getProjectFiles();
+  // Return without full content for listing
+  const fileList = files.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    size: f.size,
+    uploadedAt: f.uploadedAt
+  }));
+  res.json({ files: fileList });
+});
+
+// Get project file count
+app.get("/project-files/count", async (req, res) => {
+  const files = await getProjectFiles();
+  res.json({ count: files.length });
+});
+
+// Upload a project file
+app.post("/project-files", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const file = req.file;
+    let content = "";
+    let type = "text";
+
+    // Extract text content based on file type
+    if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
+      const pdfData = await pdf(file.buffer);
+      content = pdfData.text;
+      type = "pdf";
+    } else if (file.mimetype.startsWith("text/") ||
+               file.originalname.match(/\.(txt|md|csv|json|js|ts|py|html|css)$/i)) {
+      content = file.buffer.toString("utf-8");
+      type = "text";
+    } else {
+      return res.status(400).json({ error: "Unsupported file type. Use text files or PDFs." });
+    }
+
+    const id = await addProjectFile(file.originalname, content, type);
+    res.json({ success: true, id, name: file.originalname });
+  } catch (e) {
+    console.error("Project file upload error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Delete a project file
+app.delete("/project-files/:id", async (req, res) => {
+  const { id } = req.params;
+  const success = await deleteProjectFile(id);
+  res.json({ success });
+});
+
 // File upload endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
@@ -421,18 +546,19 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const message = req.body.message || "";
     const isImage = file.mimetype.startsWith("image/");
 
-    const [history, memories] = await Promise.all([
+    const [history, memories, projectFiles] = await Promise.all([
       getChatHistory(sessionId),
       getMemories(),
+      getProjectFiles(),
     ]);
 
-    const context = buildContext(history, memories);
+    const context = buildContext(history, memories, projectFiles);
 
     const fullInstructions = `${baseInstructions}
 
 ${context ? "CONTEXT:\n" + context : ""}
 
-Remember: You have memory of past conversations. Reference things the user has told you when relevant.`;
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. You also have access to project files the user has uploaded - reference them when relevant.`;
 
     let response = "";
 
@@ -620,18 +746,19 @@ app.post("/chat", async (req, res) => {
     }
 
     // Regular chat
-    const [history, memories] = await Promise.all([
+    const [history, memories, projectFiles] = await Promise.all([
       getChatHistory(sessionId),
       getMemories(),
+      getProjectFiles(),
     ]);
 
-    const context = buildContext(history, memories);
+    const context = buildContext(history, memories, projectFiles);
 
     const fullInstructions = `${baseInstructions}
 
 ${context ? "CONTEXT:\n" + context : ""}
 
-Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are.
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are. You also have access to project files - reference them when the user asks about them.
 
 The user can use these commands:
 - /save <text> - Save something to your memory
