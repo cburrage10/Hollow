@@ -227,7 +227,7 @@
 
     .message.user .message-footer { flex-direction: row-reverse; }
 
-    .copy-btn {
+    .copy-btn, .download-btn {
       background: none;
       border: none;
       cursor: pointer;
@@ -236,9 +236,36 @@
       padding: 2px 4px;
       transition: opacity 0.2s;
     }
-    .copy-btn:hover { opacity: 1; }
-    .message.user .copy-btn { color: white; }
-    .message.hollow .copy-btn { color: #666; }
+    .copy-btn:hover, .download-btn:hover { opacity: 1; }
+    .message.user .copy-btn, .message.user .download-btn { color: white; }
+    .message.hollow .copy-btn, .message.hollow .download-btn { color: #666; }
+
+    .image-container {
+      position: relative;
+      display: inline-block;
+      margin-top: 8px;
+    }
+    .image-container img {
+      max-width: 100%;
+      border-radius: 8px;
+      cursor: pointer;
+      display: block;
+    }
+    .image-download {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .image-container:hover .image-download { opacity: 1; }
 
     .message.hollow .content { color: #333; }
     .message.hollow .content p { margin: 0 0 8px 0; }
@@ -659,6 +686,49 @@
     });
   }
 
+  // Download image
+  async function downloadImage(url, filename = 'hollow-image.png') {
+    try {
+      showToast('Downloading...');
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      showToast('Image saved!');
+    } catch (e) {
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+      showToast('Opening image in new tab');
+    }
+  }
+
+  // Create image with download button
+  function createImageElement(imageUrl) {
+    const container = document.createElement("div");
+    container.className = "image-container";
+
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.onclick = () => window.open(imageUrl, '_blank');
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.className = "image-download";
+    downloadBtn.textContent = "⬇ Save";
+    downloadBtn.onclick = (e) => {
+      e.stopPropagation();
+      const timestamp = new Date().toISOString().slice(0,10);
+      downloadImage(imageUrl, `hollow-${timestamp}.png`);
+    };
+
+    container.appendChild(img);
+    container.appendChild(downloadBtn);
+    return container;
+  }
+
   // Expose globally for client.js voice transcription
   window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
@@ -674,11 +744,7 @@
     }
 
     if (imageUrl) {
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.style.cssText = "max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer;";
-      img.onclick = () => window.open(imageUrl, '_blank');
-      content.appendChild(img);
+      content.appendChild(createImageElement(imageUrl));
     }
 
     const footer = document.createElement("div");
@@ -842,11 +908,7 @@
     }
 
     if (imageUrl) {
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.style.cssText = "max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer;";
-      img.onclick = () => window.open(imageUrl, '_blank');
-      content.appendChild(img);
+      content.appendChild(createImageElement(imageUrl));
     }
 
     const footer = document.createElement("div");
