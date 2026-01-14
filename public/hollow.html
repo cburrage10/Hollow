@@ -212,14 +212,33 @@
       border-bottom-left-radius: 4px;
     }
 
+    .message-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      gap: 8px;
+    }
+
     .message .timestamp {
       font-size: 10px;
       opacity: 0.7;
-      margin-top: 6px;
-      display: block;
     }
 
-    .message.user .timestamp { text-align: right; }
+    .message.user .message-footer { flex-direction: row-reverse; }
+
+    .copy-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0.5;
+      padding: 2px 4px;
+      transition: opacity 0.2s;
+    }
+    .copy-btn:hover { opacity: 1; }
+    .message.user .copy-btn { color: white; }
+    .message.hollow .copy-btn { color: #666; }
 
     .message.hollow .content { color: #333; }
     .message.hollow .content p { margin: 0 0 8px 0; }
@@ -624,6 +643,22 @@
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
 
+  // Copy text to clipboard
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard');
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copied to clipboard');
+    });
+  }
+
   // Expose globally for client.js voice transcription
   window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
@@ -646,12 +681,24 @@
       content.appendChild(img);
     }
 
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+
     const timestamp = document.createElement("span");
     timestamp.className = "timestamp";
     timestamp.textContent = formatTime(new Date());
 
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+    copyBtn.onclick = () => copyToClipboard(text);
+
+    footer.appendChild(timestamp);
+    footer.appendChild(copyBtn);
+
     msg.appendChild(content);
-    msg.appendChild(timestamp);
+    msg.appendChild(footer);
 
     chatContainer.insertBefore(msg, typingIndicator);
 
@@ -802,12 +849,24 @@
       content.appendChild(img);
     }
 
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+
     const ts = document.createElement("span");
     ts.className = "timestamp";
     ts.textContent = formatTime(new Date(timestamp));
 
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+    copyBtn.onclick = () => copyToClipboard(text);
+
+    footer.appendChild(ts);
+    footer.appendChild(copyBtn);
+
     msg.appendChild(content);
-    msg.appendChild(ts);
+    msg.appendChild(footer);
 
     chatContainer.insertBefore(msg, typingIndicator);
   }
