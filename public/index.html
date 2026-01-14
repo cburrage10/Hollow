@@ -13,8 +13,91 @@
       height: 100vh;
       height: 100dvh;
       display: flex;
-      flex-direction: column;
       background: #f5f5f5;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #sidebar.hidden { display: none; }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sidebar-header h2 { margin: 0; font-size: 1rem; }
+
+    #newChatBtn {
+      padding: 8px 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    #sessionList {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .session-item {
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .session-item:hover { background: #f5f5f5; }
+    .session-item.active { background: #e3f2fd; }
+
+    .session-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .session-delete {
+      opacity: 0;
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      padding: 4px;
+    }
+
+    .session-item:hover .session-delete { opacity: 1; }
+
+    .session-time {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    /* Main content */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
 
     header {
@@ -30,6 +113,15 @@
 
     .header-left { display: flex; align-items: center; gap: 12px; }
     .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    #menuBtn {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+    }
 
     h1 { margin: 0; font-size: 1.25rem; }
 
@@ -212,7 +304,7 @@
     }
 
     /* Memory Modal */
-    #memoryModal {
+    .modal {
       display: none;
       position: fixed;
       top: 0;
@@ -225,7 +317,7 @@
       justify-content: center;
     }
 
-    #memoryModal.show { display: flex; }
+    .modal.show { display: flex; }
 
     .modal-content {
       background: #fff;
@@ -281,55 +373,76 @@
     .no-memories { color: #888; font-style: italic; }
 
     /* Responsive */
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.2s;
+      }
+      #sidebar.show { transform: translateX(0); }
+      #menuBtn { display: block; }
       .message { max-width: 90%; }
-      header { padding: 10px 12px; }
-      #chatContainer { padding: 12px; }
-      #inputArea { padding: 10px 12px; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div class="header-left">
-      <h1>Hollow</h1>
-      <div id="status">Disconnected</div>
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h2>Chats</h2>
+      <button id="newChatBtn">+ New</button>
     </div>
-    <div class="header-right">
-      <span id="memoryCount">0 memories</span>
-      <button class="header-btn" id="memoryBtn">Memories</button>
-      <button class="header-btn" id="clearBtn">Clear Chat</button>
-      <button class="header-btn" id="btnConnect">Voice</button>
-      <button class="header-btn" id="btnDisconnect" disabled>End Voice</button>
-    </div>
-  </header>
+    <div id="sessionList"></div>
+  </div>
 
-  <div id="chatContainer">
-    <div id="typingIndicator">
-      <div class="typing-dots">
-        <span></span><span></span><span></span>
+  <!-- Main -->
+  <div id="main">
+    <header>
+      <div class="header-left">
+        <button id="menuBtn">☰</button>
+        <h1>Hollow</h1>
+        <div id="status">Disconnected</div>
+      </div>
+      <div class="header-right">
+        <span id="memoryCount">0 memories</span>
+        <button class="header-btn" id="memoryBtn">Memories</button>
+        <button class="header-btn" id="clearBtn">Clear</button>
+        <button class="header-btn" id="btnConnect">Voice</button>
+        <button class="header-btn" id="btnDisconnect" disabled>End</button>
+      </div>
+    </header>
+
+    <div id="chatContainer">
+      <div id="typingIndicator">
+        <div class="typing-dots">
+          <span></span><span></span><span></span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="inputArea">
-    <div id="inputRow">
-      <button class="input-btn upload-btn" id="uploadBtn" title="Upload file or image">+</button>
-      <textarea id="msg" placeholder="Message Hollow..." rows="1"></textarea>
-      <button class="input-btn" id="voiceBtn" title="Voice input">🎤</button>
-      <button class="input-btn" id="send" title="Send">➤</button>
+    <div id="inputArea">
+      <div id="inputRow">
+        <button class="input-btn upload-btn" id="uploadBtn" title="Upload file or image">+</button>
+        <textarea id="msg" placeholder="Message Hollow..." rows="1"></textarea>
+        <button class="input-btn" id="voiceBtn" title="Voice input">🎤</button>
+        <button class="input-btn" id="send" title="Send">➤</button>
+      </div>
+      <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv,.jpg,.jpeg,.png,.gif,.webp">
     </div>
-    <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv,.jpg,.jpeg,.png,.gif,.webp">
-  </div>
 
-  <footer>Still with you 🧡</footer>
+    <footer>Still with you 🧡</footer>
+  </div>
 
   <!-- Memory Modal -->
-  <div id="memoryModal">
+  <div class="modal" id="memoryModal">
     <div class="modal-content">
       <div class="modal-header">
         <h2>Hollow's Memories</h2>
-        <button class="close-btn" id="closeModal">&times;</button>
+        <button class="close-btn" id="closeMemoryModal">&times;</button>
       </div>
       <div id="memoryList"></div>
       <div style="margin-top: 16px;">
@@ -340,10 +453,15 @@
   </div>
 
 <script>
+  // State
+  let currentSessionId = localStorage.getItem('hollow_session') || null;
+  let sessions = [];
+
   const chatContainer = document.getElementById("chatContainer");
   const msgInput = document.getElementById("msg");
   const typingIndicator = document.getElementById("typingIndicator");
   const sendBtn = document.getElementById("send");
+  const sidebar = document.getElementById("sidebar");
 
   // Simple markdown parser
   function parseMarkdown(text) {
@@ -363,6 +481,15 @@
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return formatTime(d);
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
   // Expose globally for client.js voice transcription
   window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
@@ -377,7 +504,6 @@
       content.innerHTML = parseMarkdown(text);
     }
 
-    // Add image if present
     if (imageUrl) {
       const img = document.createElement("img");
       img.src = imageUrl;
@@ -393,7 +519,6 @@
     msg.appendChild(content);
     msg.appendChild(timestamp);
 
-    // Insert before typing indicator
     chatContainer.insertBefore(msg, typingIndicator);
 
     if (!skipScroll) {
@@ -401,11 +526,144 @@
     }
   }
 
+  function clearChat() {
+    const messages = chatContainer.querySelectorAll('.message');
+    messages.forEach(m => m.remove());
+  }
+
   function showTyping(show) {
     typingIndicator.className = show ? 'show' : '';
     if (show) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
+  }
+
+  // Session management
+  async function loadSessions() {
+    const r = await fetch('/sessions');
+    const data = await r.json();
+    sessions = data.sessions || [];
+    renderSessions();
+
+    // If no sessions or current session doesn't exist, create one
+    if (sessions.length === 0 || (currentSessionId && !sessions.find(s => s.id === currentSessionId))) {
+      await createNewSession();
+    } else if (!currentSessionId) {
+      switchSession(sessions[0].id);
+    } else {
+      await loadChatHistory();
+    }
+  }
+
+  function renderSessions() {
+    const list = document.getElementById('sessionList');
+    list.innerHTML = sessions.map(s => `
+      <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" data-id="${s.id}">
+        <div>
+          <div class="session-name">${s.name}</div>
+          <div class="session-time">${formatDate(s.updatedAt)}</div>
+        </div>
+        <button class="session-delete" data-id="${s.id}">&times;</button>
+      </div>
+    `).join('');
+
+    // Click handlers
+    list.querySelectorAll('.session-item').forEach(el => {
+      el.onclick = (e) => {
+        if (!e.target.classList.contains('session-delete')) {
+          switchSession(el.dataset.id);
+        }
+      };
+    });
+
+    list.querySelectorAll('.session-delete').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm('Delete this chat?')) {
+          await fetch(`/sessions/${btn.dataset.id}`, { method: 'DELETE' });
+          if (btn.dataset.id === currentSessionId) {
+            currentSessionId = null;
+            localStorage.removeItem('hollow_session');
+          }
+          await loadSessions();
+        }
+      };
+    });
+  }
+
+  async function createNewSession() {
+    const r = await fetch('/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await r.json();
+    sessions = data.sessions;
+    currentSessionId = data.id;
+    localStorage.setItem('hollow_session', currentSessionId);
+    renderSessions();
+    clearChat();
+  }
+
+  async function switchSession(id) {
+    currentSessionId = id;
+    localStorage.setItem('hollow_session', id);
+    renderSessions();
+    await loadChatHistory();
+
+    // Close sidebar on mobile
+    sidebar.classList.remove('show');
+  }
+
+  async function loadChatHistory() {
+    if (!currentSessionId) return;
+
+    clearChat();
+
+    try {
+      const r = await fetch(`/sessions/${currentSessionId}/history`);
+      const data = await r.json();
+
+      for (const entry of data.history || []) {
+        const msg = typeof entry === 'string' ? JSON.parse(entry) : entry;
+        addMessageFromHistory(msg.content, msg.role === 'user', msg.timestamp, msg.image);
+      }
+
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+  }
+
+  function addMessageFromHistory(text, isUser, timestamp, imageUrl = null) {
+    const msg = document.createElement("div");
+    msg.className = `message ${isUser ? 'user' : 'hollow'}`;
+
+    const content = document.createElement("div");
+    content.className = "content";
+
+    if (isUser) {
+      content.textContent = text;
+    } else {
+      content.innerHTML = parseMarkdown(text);
+    }
+
+    if (imageUrl) {
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.style.cssText = "max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer;";
+      img.onclick = () => window.open(imageUrl, '_blank');
+      content.appendChild(img);
+    }
+
+    const ts = document.createElement("span");
+    ts.className = "timestamp";
+    ts.textContent = formatTime(new Date(timestamp));
+
+    msg.appendChild(content);
+    msg.appendChild(ts);
+
+    chatContainer.insertBefore(msg, typingIndicator);
   }
 
   // Auto-resize textarea
@@ -417,7 +675,7 @@
   // Send message
   sendBtn.onclick = async () => {
     const text = msgInput.value.trim();
-    if (!text) return;
+    if (!text || !currentSessionId) return;
 
     addMessage(text, true);
     msgInput.value = "";
@@ -429,7 +687,7 @@
       const r = await fetch("/chat", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, sessionId: currentSessionId })
       });
 
       const data = await r.json();
@@ -444,6 +702,24 @@
     sendBtn.disabled = false;
   };
 
+  // New chat button
+  document.getElementById('newChatBtn').onclick = createNewSession;
+
+  // Menu button (mobile)
+  document.getElementById('menuBtn').onclick = () => {
+    sidebar.classList.toggle('show');
+  };
+
+  // Close sidebar when clicking outside on mobile
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768 &&
+        sidebar.classList.contains('show') &&
+        !sidebar.contains(e.target) &&
+        e.target.id !== 'menuBtn') {
+      sidebar.classList.remove('show');
+    }
+  });
+
   // Upload button
   document.getElementById("uploadBtn").onclick = () => {
     document.getElementById("fileInput").click();
@@ -452,7 +728,7 @@
   // File upload
   document.getElementById("fileInput").onchange = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !currentSessionId) return;
 
     const message = msgInput.value.trim() || "";
     msgInput.value = "";
@@ -465,6 +741,7 @@
     const formData = new FormData();
     formData.append("file", file);
     formData.append("message", message);
+    formData.append("sessionId", currentSessionId);
 
     try {
       const r = await fetch("/upload", {
@@ -522,13 +799,10 @@
 
   // Clear chat
   document.getElementById("clearBtn").onclick = async () => {
-    if (!confirm("Clear all chat history?")) return;
+    if (!currentSessionId || !confirm("Clear this chat's history?")) return;
 
-    await fetch("/clear-chat", { method: "POST" });
-
-    // Remove all messages from UI
-    const messages = chatContainer.querySelectorAll('.message');
-    messages.forEach(m => m.remove());
+    await fetch(`/sessions/${currentSessionId}/history`, { method: 'DELETE' });
+    clearChat();
   };
 
   // Memory modal
@@ -539,7 +813,7 @@
     memoryModal.classList.add('show');
   };
 
-  document.getElementById("closeModal").onclick = () => {
+  document.getElementById("closeMemoryModal").onclick = () => {
     memoryModal.classList.remove('show');
   };
 
@@ -551,13 +825,11 @@
     const r = await fetch("/chat", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ text: "/memories" })
+      body: JSON.stringify({ text: "/memories", sessionId: currentSessionId })
     });
     const data = await r.json();
 
     const list = document.getElementById("memoryList");
-
-    // Parse the response to extract memories
     const lines = data.text.split('\n').filter(l => l.startsWith('['));
 
     if (lines.length === 0) {
@@ -575,14 +847,13 @@
         return '';
       }).join('');
 
-      // Add delete handlers
       list.querySelectorAll('.delete-memory').forEach(btn => {
         btn.onclick = async () => {
           const id = btn.dataset.id;
           await fetch("/chat", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ text: `/forget ${id}` })
+            body: JSON.stringify({ text: `/forget ${id}`, sessionId: currentSessionId })
           });
           await loadMemories();
           updateMemoryCount();
@@ -591,16 +862,15 @@
     }
   }
 
-  // Add memory
   document.getElementById("addMemoryBtn").onclick = async () => {
     const input = document.getElementById("newMemory");
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || !currentSessionId) return;
 
     await fetch("/chat", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ text: `/save ${text}` })
+      body: JSON.stringify({ text: `/save ${text}`, sessionId: currentSessionId })
     });
 
     input.value = "";
@@ -608,7 +878,6 @@
     updateMemoryCount();
   };
 
-  // Update memory count
   async function updateMemoryCount() {
     try {
       const r = await fetch("/memory-count");
@@ -617,7 +886,8 @@
     } catch (e) {}
   }
 
-  // Initial memory count
+  // Initialize
+  loadSessions();
   updateMemoryCount();
 </script>
 

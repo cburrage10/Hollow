@@ -2,6 +2,7 @@ import express from "express";
 import { Redis } from "@upstash/redis";
 import multer from "multer";
 import pdf from "pdf-parse/lib/pdf-parse.js";
+import crypto from "crypto";
 
 // Configure multer for file uploads (store in memory)
 const upload = multer({
@@ -40,16 +41,27 @@ app.use(express.json());
 // Parse raw SDP payloads posted from the browser
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
-// Memory keys
-const CHAT_HISTORY_KEY = "hollow:chat_history";
+// Keys
 const MEMORIES_KEY = "hollow:memories";
 const MEMORY_COUNTER_KEY = "hollow:memory_counter";
-const MAX_HISTORY = 50;
+const SESSIONS_KEY = "hollow:sessions"; // List of all session IDs
+const MAX_HISTORY = 100;
 
-// Get recent chat history
-async function getChatHistory() {
+// Generate a short session ID
+function generateSessionId() {
+  return crypto.randomBytes(4).toString("hex");
+}
+
+// Get chat history key for a session
+function getChatKey(sessionId) {
+  return `hollow:chat:${sessionId}`;
+}
+
+// Get recent chat history for a session
+async function getChatHistory(sessionId) {
   try {
-    const history = await redis.lrange(CHAT_HISTORY_KEY, 0, MAX_HISTORY - 1);
+    const key = getChatKey(sessionId);
+    const history = await redis.lrange(key, 0, MAX_HISTORY - 1);
     return history || [];
   } catch (e) {
     console.error("Error getting chat history:", e);
@@ -57,18 +69,88 @@ async function getChatHistory() {
   }
 }
 
-// Add message to chat history
-async function addToHistory(role, content) {
+// Add message to chat history for a session
+async function addToHistory(sessionId, role, content, image = null) {
   try {
-    const entry = JSON.stringify({ role, content, timestamp: Date.now() });
-    await redis.lpush(CHAT_HISTORY_KEY, entry);
-    await redis.ltrim(CHAT_HISTORY_KEY, 0, MAX_HISTORY - 1);
+    const key = getChatKey(sessionId);
+    const entry = JSON.stringify({ role, content, image, timestamp: Date.now() });
+    await redis.lpush(key, entry);
+    await redis.ltrim(key, 0, MAX_HISTORY - 1);
   } catch (e) {
     console.error("Error adding to history:", e);
   }
 }
 
-// Get stored memories (now with IDs)
+// Get all sessions
+async function getSessions() {
+  try {
+    const sessions = await redis.get(SESSIONS_KEY);
+    return sessions || [];
+  } catch (e) {
+    console.error("Error getting sessions:", e);
+    return [];
+  }
+}
+
+// Save sessions list
+async function saveSessions(sessions) {
+  try {
+    await redis.set(SESSIONS_KEY, sessions);
+  } catch (e) {
+    console.error("Error saving sessions:", e);
+  }
+}
+
+// Create a new session
+async function createSession(name = null) {
+  const id = generateSessionId();
+  const sessions = await getSessions();
+  sessions.unshift({
+    id,
+    name: name || `Chat ${sessions.length + 1}`,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+  await saveSessions(sessions);
+  return id;
+}
+
+// Update session timestamp
+async function touchSession(sessionId) {
+  const sessions = await getSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session) {
+    session.updatedAt = Date.now();
+    await saveSessions(sessions);
+  }
+}
+
+// Rename a session
+async function renameSession(sessionId, name) {
+  const sessions = await getSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session) {
+    session.name = name;
+    await saveSessions(sessions);
+    return true;
+  }
+  return false;
+}
+
+// Delete a session
+async function deleteSession(sessionId) {
+  const sessions = await getSessions();
+  const index = sessions.findIndex(s => s.id === sessionId);
+  if (index !== -1) {
+    sessions.splice(index, 1);
+    await saveSessions(sessions);
+    await redis.del(getChatKey(sessionId));
+    return true;
+  }
+  return false;
+}
+
+// Get stored memories
 async function getMemories() {
   try {
     const memories = await redis.get(MEMORIES_KEY);
@@ -166,7 +248,6 @@ app.post("/session", async (req, res) => {
   try {
     const sdpOffer = req.body;
 
-    // Create ephemeral token for Realtime API
     const tokenResponse = await fetch("https://api.openai.com/v1/realtime/sessions", {
       method: "POST",
       headers: {
@@ -192,7 +273,6 @@ app.post("/session", async (req, res) => {
       return res.status(500).send("Failed to get ephemeral key");
     }
 
-    // Connect to Realtime API with SDP offer
     const realtimeResponse = await fetch(
       `https://api.openai.com/v1/realtime?model=${process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2024-12-17"}`,
       {
@@ -218,20 +298,56 @@ app.post("/session", async (req, res) => {
   }
 });
 
+// === Session Management Endpoints ===
+
+// Get all sessions
+app.get("/sessions", async (req, res) => {
+  const sessions = await getSessions();
+  res.json({ sessions });
+});
+
+// Create new session
+app.post("/sessions", async (req, res) => {
+  const name = req.body?.name;
+  const id = await createSession(name);
+  const sessions = await getSessions();
+  res.json({ id, sessions });
+});
+
+// Rename session
+app.patch("/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+  const success = await renameSession(id, name);
+  res.json({ success });
+});
+
+// Delete session
+app.delete("/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+  const success = await deleteSession(id);
+  res.json({ success });
+});
+
+// Get chat history for a session
+app.get("/sessions/:id/history", async (req, res) => {
+  const { id } = req.params;
+  const history = await getChatHistory(id);
+  // Return in chronological order
+  res.json({ history: [...history].reverse() });
+});
+
+// Clear chat history for a session
+app.delete("/sessions/:id/history", async (req, res) => {
+  const { id } = req.params;
+  await redis.del(getChatKey(id));
+  res.json({ success: true });
+});
+
 // Memory count endpoint (public)
 app.get("/memory-count", async (req, res) => {
   const memories = await getMemories();
   res.json({ count: memories.length });
-});
-
-// Clear chat history endpoint
-app.post("/clear-chat", async (req, res) => {
-  try {
-    await redis.del(CHAT_HISTORY_KEY);
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
 });
 
 // File upload endpoint
@@ -241,13 +357,17 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
+    const sessionId = req.body.sessionId;
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID required" });
+    }
+
     const file = req.file;
     const message = req.body.message || "";
     const isImage = file.mimetype.startsWith("image/");
 
-    // Get history and memories
     const [history, memories] = await Promise.all([
-      getChatHistory(),
+      getChatHistory(sessionId),
       getMemories(),
     ]);
 
@@ -262,7 +382,6 @@ Remember: You have memory of past conversations. Reference things the user has t
     let response = "";
 
     if (isImage) {
-      // Handle image with GPT-4 vision
       const base64Image = file.buffer.toString("base64");
       const mimeType = file.mimetype;
 
@@ -293,7 +412,6 @@ Remember: You have memory of past conversations. Reference things the user has t
         }
       }
     } else {
-      // Handle text-based files
       let fileContent = "";
 
       if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
@@ -343,9 +461,9 @@ User's message: ${message}`;
 
     response = response || "(No text output)";
 
-    // Store in history
-    await addToHistory("user", `[Uploaded ${isImage ? "image" : "file"}: ${file.originalname}] ${message}`);
-    await addToHistory("assistant", response);
+    await addToHistory(sessionId, "user", `[Uploaded ${isImage ? "image" : "file"}: ${file.originalname}] ${message}`);
+    await addToHistory(sessionId, "assistant", response);
+    await touchSession(sessionId);
 
     res.json({ text: response, filename: file.originalname });
   } catch (e) {
@@ -357,7 +475,10 @@ User's message: ${message}`;
 app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
+    const sessionId = req.body?.sessionId;
+
     if (!text) return res.json({ text: "" });
+    if (!sessionId) return res.status(400).json({ error: "Session ID required" });
 
     // Handle /save command
     if (text.startsWith("/save ")) {
@@ -383,13 +504,13 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    // Handle /memories command - list all memories
+    // Handle /memories command
     if (text === "/memories") {
       const memories = await getMemories();
       return res.json({ text: formatMemoriesList(memories) });
     }
 
-    // Handle /imagine command - generate images with DALL-E
+    // Handle /imagine command
     if (text.startsWith("/imagine ")) {
       const prompt = text.slice(9).trim();
       if (!prompt) {
@@ -422,8 +543,9 @@ app.post("/chat", async (req, res) => {
         const revisedPrompt = data.data?.[0]?.revised_prompt;
 
         if (imageUrl) {
-          await addToHistory("user", `[Generated image: ${prompt}]`);
-          await addToHistory("assistant", `Created an image: ${revisedPrompt || prompt}`);
+          await addToHistory(sessionId, "user", `/imagine ${prompt}`);
+          await addToHistory(sessionId, "assistant", revisedPrompt ? `Here's what I created: "${revisedPrompt}"` : "Here's your image!", imageUrl);
+          await touchSession(sessionId);
           return res.json({
             text: revisedPrompt ? `Here's what I created: "${revisedPrompt}"` : "Here's your image!",
             image: imageUrl
@@ -437,13 +559,12 @@ app.post("/chat", async (req, res) => {
       }
     }
 
-    // Regular chat - get history and memories
+    // Regular chat
     const [history, memories] = await Promise.all([
-      getChatHistory(),
+      getChatHistory(sessionId),
       getMemories(),
     ]);
 
-    // Build context
     const context = buildContext(history, memories);
 
     const fullInstructions = `${baseInstructions}
@@ -455,7 +576,8 @@ Remember: You have memory of past conversations. Reference things the user has t
 The user can use these commands:
 - /save <text> - Save something to your memory
 - /forget <id> - Remove a memory by ID
-- /memories - List all saved memories`;
+- /memories - List all saved memories
+- /imagine <prompt> - Generate an image`;
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -484,9 +606,9 @@ The user can use these commands:
 
     const response = out || "(No text output)";
 
-    // Store in history
-    await addToHistory("user", text);
-    await addToHistory("assistant", response);
+    await addToHistory(sessionId, "user", text);
+    await addToHistory(sessionId, "assistant", response);
+    await touchSession(sessionId);
 
     res.json({ text: response });
   } catch (e) {
@@ -495,22 +617,13 @@ The user can use these commands:
   }
 });
 
-// Protected endpoint to view memories (requires secret key)
+// Protected endpoint to view memories
 app.get("/memories", async (req, res) => {
   if (!MEMORY_SECRET || req.query.key !== MEMORY_SECRET) {
     return res.status(403).json({ error: "Access denied" });
   }
   const memories = await getMemories();
   res.json({ memories });
-});
-
-// Protected endpoint to view chat history (requires secret key)
-app.get("/history", async (req, res) => {
-  if (!MEMORY_SECRET || req.query.key !== MEMORY_SECRET) {
-    return res.status(403).json({ error: "Access denied" });
-  }
-  const history = await getChatHistory();
-  res.json({ history });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
