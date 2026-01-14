@@ -8,11 +8,13 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
-    const allowed = ["text/plain", "application/pdf", "text/markdown", "text/csv"];
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(txt|pdf|md|csv)$/i)) {
+    const allowedText = ["text/plain", "application/pdf", "text/markdown", "text/csv"];
+    const allowedImages = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (allowedText.includes(file.mimetype) || allowedImages.includes(file.mimetype) ||
+        file.originalname.match(/\.(txt|pdf|md|csv|jpg|jpeg|png|gif|webp)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error("Only .txt, .pdf, .md, and .csv files are allowed"));
+      cb(new Error("Unsupported file type"));
     }
   },
 });
@@ -216,6 +218,22 @@ app.post("/session", async (req, res) => {
   }
 });
 
+// Memory count endpoint (public)
+app.get("/memory-count", async (req, res) => {
+  const memories = await getMemories();
+  res.json({ count: memories.length });
+});
+
+// Clear chat history endpoint
+app.post("/clear-chat", async (req, res) => {
+  try {
+    await redis.del(CHAT_HISTORY_KEY);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // File upload endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
@@ -224,23 +242,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     }
 
     const file = req.file;
-    let fileContent = "";
-
-    // Extract text based on file type
-    if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
-      const pdfData = await pdf(file.buffer);
-      fileContent = pdfData.text;
-    } else {
-      // Text-based files (txt, md, csv)
-      fileContent = file.buffer.toString("utf-8");
-    }
-
-    // Truncate if too long (keep first 15000 chars)
-    if (fileContent.length > 15000) {
-      fileContent = fileContent.substring(0, 15000) + "\n...[truncated]";
-    }
-
-    const message = req.body.message || "Please read and summarize this file.";
+    const message = req.body.message || "Please describe what you see.";
+    const isImage = file.mimetype.startsWith("image/");
 
     // Get history and memories
     const [history, memories] = await Promise.all([
@@ -256,7 +259,55 @@ ${context ? "CONTEXT:\n" + context : ""}
 
 Remember: You have memory of past conversations. Reference things the user has told you when relevant.`;
 
-    const input = `The user uploaded a file named "${file.originalname}".
+    let response = "";
+
+    if (isImage) {
+      // Handle image with GPT-4 vision
+      const base64Image = file.buffer.toString("base64");
+      const mimeType = file.mimetype;
+
+      const r = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          instructions: fullInstructions,
+          input: [
+            { type: "input_text", text: message },
+            { type: "input_image", image_url: `data:${mimeType};base64,${base64Image}` }
+          ],
+        }),
+      });
+
+      const raw = await r.text();
+      if (!r.ok) return res.status(r.status).json({ error: raw });
+
+      const data = JSON.parse(raw);
+
+      for (const item of data.output || []) {
+        for (const c of item.content || []) {
+          if (c.type === "output_text" && c.text) response += c.text;
+        }
+      }
+    } else {
+      // Handle text-based files
+      let fileContent = "";
+
+      if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
+        const pdfData = await pdf(file.buffer);
+        fileContent = pdfData.text;
+      } else {
+        fileContent = file.buffer.toString("utf-8");
+      }
+
+      if (fileContent.length > 15000) {
+        fileContent = fileContent.substring(0, 15000) + "\n...[truncated]";
+      }
+
+      const input = `The user uploaded a file named "${file.originalname}".
 
 FILE CONTENT:
 ---
@@ -265,35 +316,35 @@ ${fileContent}
 
 User's message: ${message}`;
 
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        instructions: fullInstructions,
-        input: input,
-      }),
-    });
+      const r = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          instructions: fullInstructions,
+          input: input,
+        }),
+      });
 
-    const raw = await r.text();
-    if (!r.ok) return res.status(r.status).json({ error: raw });
+      const raw = await r.text();
+      if (!r.ok) return res.status(r.status).json({ error: raw });
 
-    const data = JSON.parse(raw);
+      const data = JSON.parse(raw);
 
-    let out = "";
-    for (const item of data.output || []) {
-      for (const c of item.content || []) {
-        if (c.type === "output_text" && c.text) out += c.text;
+      for (const item of data.output || []) {
+        for (const c of item.content || []) {
+          if (c.type === "output_text" && c.text) response += c.text;
+        }
       }
     }
 
-    const response = out || "(No text output)";
+    response = response || "(No text output)";
 
     // Store in history
-    await addToHistory("user", `[Uploaded file: ${file.originalname}] ${message}`);
+    await addToHistory("user", `[Uploaded ${isImage ? "image" : "file"}: ${file.originalname}] ${message}`);
     await addToHistory("assistant", response);
 
     res.json({ text: response, filename: file.originalname });
