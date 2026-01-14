@@ -364,7 +364,7 @@
   }
 
   // Expose globally for client.js voice transcription
-  window.addMessage = function(text, isUser, skipScroll = false) {
+  window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'hollow'}`;
 
@@ -375,6 +375,15 @@
       content.textContent = text;
     } else {
       content.innerHTML = parseMarkdown(text);
+    }
+
+    // Add image if present
+    if (imageUrl) {
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.style.cssText = "max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer;";
+      img.onclick = () => window.open(imageUrl, '_blank');
+      content.appendChild(img);
     }
 
     const timestamp = document.createElement("span");
@@ -425,7 +434,7 @@
 
       const data = await r.json();
       showTyping(false);
-      addMessage(data.text || data.error || "(no reply)", false);
+      addMessage(data.text || data.error || "(no reply)", false, false, data.image);
       updateMemoryCount();
     } catch (err) {
       showTyping(false);
