@@ -440,19 +440,29 @@ Remember: You have memory of past conversations. Reference things the user has t
       const base64Image = file.buffer.toString("base64");
       const mimeType = file.mimetype;
 
-      const r = await fetch("https://api.openai.com/v1/responses", {
+      // Use chat completions API for vision
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          instructions: fullInstructions,
-          input: [
-            { type: "input_text", text: message },
-            { type: "input_image", image_url: `data:${mimeType};base64,${base64Image}` }
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: fullInstructions
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: message || "What do you see in this image?" },
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+              ]
+            }
           ],
+          max_tokens: 1000
         }),
       });
 
@@ -460,12 +470,7 @@ Remember: You have memory of past conversations. Reference things the user has t
       if (!r.ok) return res.status(r.status).json({ error: raw });
 
       const data = JSON.parse(raw);
-
-      for (const item of data.output || []) {
-        for (const c of item.content || []) {
-          if (c.type === "output_text" && c.text) response += c.text;
-        }
-      }
+      response = data.choices?.[0]?.message?.content || "";
     } else {
       let fileContent = "";
 
