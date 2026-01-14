@@ -445,7 +445,7 @@
     const file = e.target.files[0];
     if (!file) return;
 
-    const message = msgInput.value.trim() || (file.type.startsWith("image/") ? "What do you see in this image?" : "Please read and summarize this file.");
+    const message = msgInput.value.trim() || "";
     msgInput.value = "";
     msgInput.style.height = 'auto';
 

@@ -242,7 +242,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     }
 
     const file = req.file;
-    const message = req.body.message || "Please describe what you see.";
+    const message = req.body.message || "";
     const isImage = file.mimetype.startsWith("image/");
 
     // Get history and memories
