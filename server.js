@@ -1,5 +1,21 @@
 import express from "express";
 import { Redis } from "@upstash/redis";
+import multer from "multer";
+import pdf from "pdf-parse/lib/pdf-parse.js";
+
+// Configure multer for file uploads (store in memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowed = ["text/plain", "application/pdf", "text/markdown", "text/csv"];
+    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(txt|pdf|md|csv)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only .txt, .pdf, .md, and .csv files are allowed"));
+    }
+  },
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -197,6 +213,93 @@ app.post("/session", async (req, res) => {
   } catch (e) {
     console.error("Session error:", e);
     res.status(500).send(String(e));
+  }
+});
+
+// File upload endpoint
+app.post("/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const file = req.file;
+    let fileContent = "";
+
+    // Extract text based on file type
+    if (file.mimetype === "application/pdf" || file.originalname.endsWith(".pdf")) {
+      const pdfData = await pdf(file.buffer);
+      fileContent = pdfData.text;
+    } else {
+      // Text-based files (txt, md, csv)
+      fileContent = file.buffer.toString("utf-8");
+    }
+
+    // Truncate if too long (keep first 15000 chars)
+    if (fileContent.length > 15000) {
+      fileContent = fileContent.substring(0, 15000) + "\n...[truncated]";
+    }
+
+    const message = req.body.message || "Please read and summarize this file.";
+
+    // Get history and memories
+    const [history, memories] = await Promise.all([
+      getChatHistory(),
+      getMemories(),
+    ]);
+
+    const context = buildContext(history, memories);
+
+    const fullInstructions = `${baseInstructions}
+
+${context ? "CONTEXT:\n" + context : ""}
+
+Remember: You have memory of past conversations. Reference things the user has told you when relevant.`;
+
+    const input = `The user uploaded a file named "${file.originalname}".
+
+FILE CONTENT:
+---
+${fileContent}
+---
+
+User's message: ${message}`;
+
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1-mini",
+        instructions: fullInstructions,
+        input: input,
+      }),
+    });
+
+    const raw = await r.text();
+    if (!r.ok) return res.status(r.status).json({ error: raw });
+
+    const data = JSON.parse(raw);
+
+    let out = "";
+    for (const item of data.output || []) {
+      for (const c of item.content || []) {
+        if (c.type === "output_text" && c.text) out += c.text;
+      }
+    }
+
+    const response = out || "(No text output)";
+
+    // Store in history
+    await addToHistory("user", `[Uploaded file: ${file.originalname}] ${message}`);
+    await addToHistory("assistant", response);
+
+    res.json({ text: response, filename: file.originalname });
+  } catch (e) {
+    console.error("Upload error:", e);
+    res.status(500).json({ error: String(e.message || e) });
   }
 });
 

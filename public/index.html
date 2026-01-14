@@ -28,10 +28,23 @@
 <input id="msg" placeholder="Type to Hollow..." style="width:70%; padding:8px;">
 <button id="send">Send</button>
 
+<div class="row">
+  <label style="cursor:pointer; padding:10px 14px; font-size:14px; background:#f0f0f0; border:1px solid #ccc; border-radius:4px; display:inline-block;">
+    Upload File
+    <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv" style="display:none;">
+  </label>
+  <span id="fileName" style="margin-left:10px; color:#666;"></span>
+</div>
+
 <pre id="log" style="white-space:pre-wrap; margin-top:12px;"></pre>
 
 <script>
   const log = (s) => document.getElementById("log").textContent += s + "\n";
+
+  // Handle Enter key in input
+  document.getElementById("msg").onkeydown = (e) => {
+    if (e.key === "Enter") document.getElementById("send").click();
+  };
 
   document.getElementById("send").onclick = async () => {
     const text = document.getElementById("msg").value.trim();
@@ -48,6 +61,38 @@
 
     const data = await r.json();
     log("Hollow: " + (data.text || data.error || "(no reply)"));
+  };
+
+  // File upload handling
+  document.getElementById("fileInput").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    document.getElementById("fileName").textContent = "Uploading: " + file.name;
+
+    const message = document.getElementById("msg").value.trim() || "Please read and summarize this file.";
+    document.getElementById("msg").value = "";
+
+    log("You: [Uploaded " + file.name + "] " + message);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("message", message);
+
+    try {
+      const r = await fetch("/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await r.json();
+      log("Hollow: " + (data.text || data.error || "(no reply)"));
+    } catch (err) {
+      log("Error: " + err.message);
+    }
+
+    document.getElementById("fileName").textContent = "";
+    e.target.value = "";
   };
 </script>
 
