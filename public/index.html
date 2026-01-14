@@ -18,7 +18,7 @@
 
     /* Sidebar */
     #sidebar {
-      width: 260px;
+      width: 280px;
       background: #fff;
       border-right: 1px solid #e0e0e0;
       display: flex;
@@ -26,26 +26,36 @@
       flex-shrink: 0;
     }
 
-    #sidebar.hidden { display: none; }
-
     .sidebar-header {
-      padding: 16px;
+      padding: 12px;
       border-bottom: 1px solid #e0e0e0;
+    }
+
+    .sidebar-header-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      margin-bottom: 8px;
     }
 
     .sidebar-header h2 { margin: 0; font-size: 1rem; }
 
     #newChatBtn {
-      padding: 8px 12px;
+      padding: 6px 10px;
       background: #007bff;
       color: white;
       border: none;
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
+    }
+
+    #searchInput {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
     }
 
     #sessionList {
@@ -55,7 +65,7 @@
     }
 
     .session-item {
-      padding: 12px;
+      padding: 10px 12px;
       border-radius: 8px;
       cursor: pointer;
       margin-bottom: 4px;
@@ -67,24 +77,33 @@
     .session-item:hover { background: #f5f5f5; }
     .session-item.active { background: #e3f2fd; }
 
+    .session-info { flex: 1; min-width: 0; }
+
     .session-name {
-      flex: 1;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 14px;
     }
 
-    .session-delete {
+    .session-actions {
+      display: flex;
+      gap: 4px;
       opacity: 0;
-      background: none;
-      border: none;
-      color: #999;
-      cursor: pointer;
-      padding: 4px;
     }
 
-    .session-item:hover .session-delete { opacity: 1; }
+    .session-item:hover .session-actions { opacity: 1; }
+
+    .session-action-btn {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .session-action-btn:hover { color: #333; }
 
     .session-time {
       font-size: 11px;
@@ -101,7 +120,7 @@
     }
 
     header {
-      padding: 12px 16px;
+      padding: 10px 16px;
       background: #fff;
       border-bottom: 1px solid #e0e0e0;
       display: flex;
@@ -111,8 +130,8 @@
       gap: 8px;
     }
 
-    .header-left { display: flex; align-items: center; gap: 12px; }
-    .header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
     #menuBtn {
       display: none;
@@ -123,19 +142,19 @@
       padding: 4px;
     }
 
-    h1 { margin: 0; font-size: 1.25rem; }
+    h1 { margin: 0; font-size: 1.1rem; }
 
     #status {
       padding: 4px 10px;
       border-radius: 12px;
-      font-size: 12px;
+      font-size: 11px;
       background: #f0f0f0;
     }
     #status.connected { background: #d4edda; color: #155724; }
 
     .header-btn {
-      padding: 8px 12px;
-      font-size: 13px;
+      padding: 6px 10px;
+      font-size: 12px;
       border: 1px solid #ddd;
       background: #fff;
       border-radius: 6px;
@@ -145,7 +164,7 @@
     .header-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
     #memoryCount {
-      font-size: 12px;
+      font-size: 11px;
       color: #666;
       padding: 4px 8px;
       background: #f0f0f0;
@@ -212,10 +231,7 @@
 
     #typingIndicator.show { display: block; }
 
-    .typing-dots {
-      display: flex;
-      gap: 4px;
-    }
+    .typing-dots { display: flex; gap: 4px; }
 
     .typing-dots span {
       width: 8px;
@@ -272,23 +288,14 @@
       flex-shrink: 0;
     }
 
-    #send {
-      background: #007bff;
-      color: white;
-    }
+    #send { background: #007bff; color: white; }
     #send:hover { background: #0056b3; }
     #send:disabled { background: #ccc; cursor: not-allowed; }
 
-    .upload-btn {
-      background: #f0f0f0;
-      border: 1px solid #ddd;
-    }
+    .upload-btn { background: #f0f0f0; border: 1px solid #ddd; }
     .upload-btn:hover { background: #e5e5e5; }
 
-    #voiceBtn {
-      background: #f0f0f0;
-      border: 1px solid #ddd;
-    }
+    #voiceBtn { background: #f0f0f0; border: 1px solid #ddd; }
     #voiceBtn:hover { background: #e5e5e5; }
     #voiceBtn.recording { background: #ff4444; color: white; border-color: #ff4444; }
 
@@ -303,14 +310,11 @@
       border-top: 1px solid #eee;
     }
 
-    /* Memory Modal */
+    /* Modals */
     .modal {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.5);
       z-index: 100;
       align-items: center;
@@ -326,7 +330,7 @@
       max-width: 90%;
       max-height: 80%;
       overflow-y: auto;
-      min-width: 300px;
+      min-width: 320px;
     }
 
     .modal-header {
@@ -346,11 +350,14 @@
       color: #666;
     }
 
-    .memory-item {
+    .memory-item, .search-result {
       padding: 10px 12px;
       background: #f5f5f5;
       border-radius: 8px;
       margin-bottom: 8px;
+    }
+
+    .memory-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -370,15 +377,67 @@
       font-size: 12px;
     }
 
-    .no-memories { color: #888; font-style: italic; }
+    .search-result {
+      cursor: pointer;
+    }
+    .search-result:hover { background: #e8e8e8; }
+
+    .search-result-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .search-result-session {
+      font-size: 12px;
+      color: #007bff;
+      font-weight: 500;
+    }
+
+    .search-result-time {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .search-result-content {
+      font-size: 14px;
+      color: #333;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .search-result-role {
+      font-size: 11px;
+      color: #666;
+      text-transform: capitalize;
+    }
+
+    .no-results { color: #888; font-style: italic; text-align: center; padding: 20px; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 200;
+    }
+
+    #toast.show { opacity: 1; }
 
     /* Responsive */
     @media (max-width: 768px) {
       #sidebar {
         position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
+        left: 0; top: 0; bottom: 0;
         z-index: 50;
         transform: translateX(-100%);
         transition: transform 0.2s;
@@ -393,8 +452,11 @@
   <!-- Sidebar -->
   <div id="sidebar">
     <div class="sidebar-header">
-      <h2>Chats</h2>
-      <button id="newChatBtn">+ New</button>
+      <div class="sidebar-header-row">
+        <h2>Chats</h2>
+        <button id="newChatBtn">+ New</button>
+      </div>
+      <input type="text" id="searchInput" placeholder="Search all chats...">
     </div>
     <div id="sessionList"></div>
   </div>
@@ -409,6 +471,7 @@
       </div>
       <div class="header-right">
         <span id="memoryCount">0 memories</span>
+        <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
         <button class="header-btn" id="btnConnect">Voice</button>
@@ -437,6 +500,9 @@
     <footer>Still with you 🧡</footer>
   </div>
 
+  <!-- Toast -->
+  <div id="toast"></div>
+
   <!-- Memory Modal -->
   <div class="modal" id="memoryModal">
     <div class="modal-content">
@@ -452,9 +518,24 @@
     </div>
   </div>
 
+  <!-- Search Modal -->
+  <div class="modal" id="searchModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Search Results</h2>
+        <button class="close-btn" id="closeSearchModal">&times;</button>
+      </div>
+      <div id="searchResults"></div>
+    </div>
+  </div>
+
 <script>
+  // Check for session in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSessionId = urlParams.get('s');
+
   // State
-  let currentSessionId = localStorage.getItem('hollow_session') || null;
+  let currentSessionId = urlSessionId || localStorage.getItem('hollow_session') || null;
   let sessions = [];
 
   const chatContainer = document.getElementById("chatContainer");
@@ -462,6 +543,21 @@
   const typingIndicator = document.getElementById("typingIndicator");
   const sendBtn = document.getElementById("send");
   const sidebar = document.getElementById("sidebar");
+
+  // If we got session from URL, save it
+  if (urlSessionId) {
+    localStorage.setItem('hollow_session', urlSessionId);
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  // Toast notification
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
 
   // Simple markdown parser
   function parseMarkdown(text) {
@@ -533,9 +629,7 @@
 
   function showTyping(show) {
     typingIndicator.className = show ? 'show' : '';
-    if (show) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
+    if (show) chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 
   // Session management
@@ -545,7 +639,6 @@
     sessions = data.sessions || [];
     renderSessions();
 
-    // If no sessions or current session doesn't exist, create one
     if (sessions.length === 0 || (currentSessionId && !sessions.find(s => s.id === currentSessionId))) {
       await createNewSession();
     } else if (!currentSessionId) {
@@ -559,20 +652,29 @@
     const list = document.getElementById('sessionList');
     list.innerHTML = sessions.map(s => `
       <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" data-id="${s.id}">
-        <div>
+        <div class="session-info">
           <div class="session-name">${s.name}</div>
           <div class="session-time">${formatDate(s.updatedAt)}</div>
         </div>
-        <button class="session-delete" data-id="${s.id}">&times;</button>
+        <div class="session-actions">
+          <button class="session-action-btn session-share" data-id="${s.id}" title="Share">🔗</button>
+          <button class="session-action-btn session-delete" data-id="${s.id}" title="Delete">×</button>
+        </div>
       </div>
     `).join('');
 
-    // Click handlers
     list.querySelectorAll('.session-item').forEach(el => {
       el.onclick = (e) => {
-        if (!e.target.classList.contains('session-delete')) {
+        if (!e.target.classList.contains('session-action-btn')) {
           switchSession(el.dataset.id);
         }
+      };
+    });
+
+    list.querySelectorAll('.session-share').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        shareSession(btn.dataset.id);
       };
     });
 
@@ -588,6 +690,15 @@
           await loadSessions();
         }
       };
+    });
+  }
+
+  function shareSession(id) {
+    const url = `${window.location.origin}?s=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Link copied! Open on any device to sync.');
+    }).catch(() => {
+      prompt('Copy this link:', url);
     });
   }
 
@@ -610,14 +721,11 @@
     localStorage.setItem('hollow_session', id);
     renderSessions();
     await loadChatHistory();
-
-    // Close sidebar on mobile
     sidebar.classList.remove('show');
   }
 
   async function loadChatHistory() {
     if (!currentSessionId) return;
-
     clearChat();
 
     try {
@@ -702,15 +810,17 @@
     sendBtn.disabled = false;
   };
 
-  // New chat button
+  // Share button
+  document.getElementById('shareBtn').onclick = () => {
+    if (currentSessionId) shareSession(currentSessionId);
+  };
+
+  // New chat
   document.getElementById('newChatBtn').onclick = createNewSession;
 
   // Menu button (mobile)
-  document.getElementById('menuBtn').onclick = () => {
-    sidebar.classList.toggle('show');
-  };
+  document.getElementById('menuBtn').onclick = () => sidebar.classList.toggle('show');
 
-  // Close sidebar when clicking outside on mobile
   document.addEventListener('click', (e) => {
     if (window.innerWidth <= 768 &&
         sidebar.classList.contains('show') &&
@@ -720,12 +830,9 @@
     }
   });
 
-  // Upload button
-  document.getElementById("uploadBtn").onclick = () => {
-    document.getElementById("fileInput").click();
-  };
+  // Upload
+  document.getElementById("uploadBtn").onclick = () => document.getElementById("fileInput").click();
 
-  // File upload
   document.getElementById("fileInput").onchange = async (e) => {
     const file = e.target.files[0];
     if (!file || !currentSessionId) return;
@@ -744,11 +851,7 @@
     formData.append("sessionId", currentSessionId);
 
     try {
-      const r = await fetch("/upload", {
-        method: "POST",
-        body: formData
-      });
-
+      const r = await fetch("/upload", { method: "POST", body: formData });
       const data = await r.json();
       showTyping(false);
       addMessage(data.text || data.error || "(no reply)", false);
@@ -761,7 +864,7 @@
     e.target.value = "";
   };
 
-  // Voice input (speech-to-text)
+  // Voice input
   const voiceBtn = document.getElementById("voiceBtn");
   let recognition = null;
 
@@ -772,18 +875,12 @@
     recognition.interimResults = false;
 
     recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript;
-      msgInput.value += transcript;
+      msgInput.value += e.results[0][0].transcript;
       msgInput.dispatchEvent(new Event('input'));
     };
 
-    recognition.onend = () => {
-      voiceBtn.classList.remove('recording');
-    };
-
-    recognition.onerror = () => {
-      voiceBtn.classList.remove('recording');
-    };
+    recognition.onend = () => voiceBtn.classList.remove('recording');
+    recognition.onerror = () => voiceBtn.classList.remove('recording');
 
     voiceBtn.onclick = () => {
       if (voiceBtn.classList.contains('recording')) {
@@ -800,10 +897,87 @@
   // Clear chat
   document.getElementById("clearBtn").onclick = async () => {
     if (!currentSessionId || !confirm("Clear this chat's history?")) return;
-
     await fetch(`/sessions/${currentSessionId}/history`, { method: 'DELETE' });
     clearChat();
   };
+
+  // Search
+  const searchInput = document.getElementById('searchInput');
+  const searchModal = document.getElementById('searchModal');
+  let searchTimeout = null;
+
+  searchInput.oninput = () => {
+    clearTimeout(searchTimeout);
+    const q = searchInput.value.trim();
+    if (q.length < 2) return;
+
+    searchTimeout = setTimeout(async () => {
+      const r = await fetch(`/search?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      showSearchResults(data.results, q);
+    }, 300);
+  };
+
+  searchInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(searchTimeout);
+      const q = searchInput.value.trim();
+      if (q.length >= 2) {
+        fetch(`/search?q=${encodeURIComponent(q)}`)
+          .then(r => r.json())
+          .then(data => showSearchResults(data.results, q));
+      }
+    }
+  };
+
+  function showSearchResults(results, query) {
+    const container = document.getElementById('searchResults');
+
+    if (results.length === 0) {
+      container.innerHTML = '<p class="no-results">No results found</p>';
+    } else {
+      container.innerHTML = results.map(r => `
+        <div class="search-result" data-session="${r.sessionId}">
+          <div class="search-result-header">
+            <span class="search-result-session">${r.sessionName}</span>
+            <span class="search-result-time">${formatDate(r.timestamp)}</span>
+          </div>
+          <div class="search-result-role">${r.role}</div>
+          <div class="search-result-content">${highlightQuery(r.content, query)}</div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.search-result').forEach(el => {
+        el.onclick = () => {
+          searchModal.classList.remove('show');
+          searchInput.value = '';
+          switchSession(el.dataset.session);
+        };
+      });
+    }
+
+    searchModal.classList.add('show');
+  }
+
+  function highlightQuery(text, query) {
+    const maxLen = 150;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerText.indexOf(lowerQuery);
+
+    let start = Math.max(0, idx - 40);
+    let end = Math.min(text.length, idx + query.length + 80);
+
+    let snippet = text.substring(start, end);
+    if (start > 0) snippet = '...' + snippet;
+    if (end < text.length) snippet = snippet + '...';
+
+    return snippet.replace(new RegExp(`(${query})`, 'gi'), '<mark>$1</mark>');
+  }
+
+  document.getElementById('closeSearchModal').onclick = () => searchModal.classList.remove('show');
+  searchModal.onclick = (e) => { if (e.target === searchModal) searchModal.classList.remove('show'); };
 
   // Memory modal
   const memoryModal = document.getElementById("memoryModal");
@@ -813,13 +987,8 @@
     memoryModal.classList.add('show');
   };
 
-  document.getElementById("closeMemoryModal").onclick = () => {
-    memoryModal.classList.remove('show');
-  };
-
-  memoryModal.onclick = (e) => {
-    if (e.target === memoryModal) memoryModal.classList.remove('show');
-  };
+  document.getElementById("closeMemoryModal").onclick = () => memoryModal.classList.remove('show');
+  memoryModal.onclick = (e) => { if (e.target === memoryModal) memoryModal.classList.remove('show'); };
 
   async function loadMemories() {
     const r = await fetch("/chat", {
@@ -833,7 +1002,7 @@
     const lines = data.text.split('\n').filter(l => l.startsWith('['));
 
     if (lines.length === 0) {
-      list.innerHTML = '<p class="no-memories">No memories saved yet.</p>';
+      list.innerHTML = '<p class="no-results">No memories saved yet.</p>';
     } else {
       list.innerHTML = lines.map(line => {
         const match = line.match(/\[(\d+)\] (.+)/);
@@ -849,11 +1018,10 @@
 
       list.querySelectorAll('.delete-memory').forEach(btn => {
         btn.onclick = async () => {
-          const id = btn.dataset.id;
           await fetch("/chat", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ text: `/forget ${id}`, sessionId: currentSessionId })
+            body: JSON.stringify({ text: `/forget ${btn.dataset.id}`, sessionId: currentSessionId })
           });
           await loadMemories();
           updateMemoryCount();

@@ -344,6 +344,46 @@ app.delete("/sessions/:id/history", async (req, res) => {
   res.json({ success: true });
 });
 
+// Search across all chats
+app.get("/search", async (req, res) => {
+  const query = (req.query.q || "").toLowerCase().trim();
+  if (!query) {
+    return res.json({ results: [] });
+  }
+
+  try {
+    const sessions = await getSessions();
+    const results = [];
+
+    for (const session of sessions) {
+      const history = await getChatHistory(session.id);
+
+      for (const entry of history) {
+        const msg = typeof entry === "string" ? JSON.parse(entry) : entry;
+        if (msg.content && msg.content.toLowerCase().includes(query)) {
+          results.push({
+            sessionId: session.id,
+            sessionName: session.name,
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            image: msg.image
+          });
+        }
+      }
+    }
+
+    // Sort by timestamp descending (newest first)
+    results.sort((a, b) => b.timestamp - a.timestamp);
+
+    // Limit to 50 results
+    res.json({ results: results.slice(0, 50) });
+  } catch (e) {
+    console.error("Search error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // Memory count endpoint (public)
 app.get("/memory-count", async (req, res) => {
   const memories = await getMemories();
