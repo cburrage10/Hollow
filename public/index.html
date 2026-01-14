@@ -136,13 +136,6 @@
     msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
   };
 
-  // Handle Enter key (Shift+Enter for new line)
-  msgInput.onkeydown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      document.getElementById("send").click();
-    }
-  };
 
   document.getElementById("send").onclick = async () => {
     const text = msgInput.value.trim();
