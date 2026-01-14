@@ -363,7 +363,8 @@
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 
-  function addMessage(text, isUser, skipScroll = false) {
+  // Expose globally for client.js voice transcription
+  window.addMessage = function(text, isUser, skipScroll = false) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'hollow'}`;
 
