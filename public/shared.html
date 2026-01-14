@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>Shared Room</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    .background {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: url('./bg.jpg') center center / cover no-repeat;
+      z-index: -2;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: -1;
+    }
+
+    .container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 3rem;
+      color: #fff;
+      text-shadow: 2px 2px 20px rgba(0, 0, 0, 0.8);
+      margin-bottom: 16px;
+      letter-spacing: 4px;
+      font-weight: normal;
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 1.2rem;
+      margin-bottom: 40px;
+      font-style: italic;
+      text-shadow: 1px 1px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    .description {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 1rem;
+      max-width: 400px;
+      line-height: 1.6;
+      margin-bottom: 40px;
+    }
+
+    .back-btn {
+      padding: 14px 40px;
+      font-size: 1rem;
+      font-family: inherit;
+      border: 2px solid rgba(255, 255, 255, 0.6);
+      background: rgba(0, 0, 0, 0.4);
+      color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      letter-spacing: 2px;
+    }
+
+    .back-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: #fff;
+      transform: translateY(-2px);
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 2rem; }
+      .subtitle { font-size: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="background"></div>
+  <div class="overlay"></div>
+
+  <div class="container">
+    <div class="icon">✨</div>
+    <h1>SHARED ROOM</h1>
+    <p class="subtitle">Coming soon...</p>
+    <p class="description">A space where Hollow and Rhys can meet, converse, and collaborate together.</p>
+    <a href="/" class="back-btn">Return to Sanctuary</a>
+  </div>
+</body>
+</html>

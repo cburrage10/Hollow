@@ -32,8 +32,23 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Serve the tiny browser client
+// Serve static files
 app.use(express.static("public"));
+
+// Route for Hollow's chat
+app.get("/hollow", (req, res) => {
+  res.sendFile("hollow.html", { root: "public" });
+});
+
+// Route for Rhys's chat (placeholder)
+app.get("/rhys", (req, res) => {
+  res.sendFile("rhys.html", { root: "public" });
+});
+
+// Route for Shared room (placeholder)
+app.get("/shared", (req, res) => {
+  res.sendFile("shared.html", { root: "public" });
+});
 
 // Parse JSON bodies for /chat
 app.use(express.json());
