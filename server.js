@@ -143,6 +143,63 @@ function formatMemoriesList(memories) {
 
 const baseInstructions = process.env.AGENT_INSTRUCTIONS || "You are Hollow, a warm, grounded companion. Be concise, kind, and helpful.";
 
+// Voice session endpoint for WebRTC
+app.post("/session", async (req, res) => {
+  try {
+    const sdpOffer = req.body;
+
+    // Create ephemeral token for Realtime API
+    const tokenResponse = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2024-12-17",
+        voice: process.env.OPENAI_VOICE || "echo",
+        instructions: baseInstructions,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const err = await tokenResponse.text();
+      return res.status(tokenResponse.status).send(err);
+    }
+
+    const sessionData = await tokenResponse.json();
+    const ephemeralKey = sessionData.client_secret?.value;
+
+    if (!ephemeralKey) {
+      return res.status(500).send("Failed to get ephemeral key");
+    }
+
+    // Connect to Realtime API with SDP offer
+    const realtimeResponse = await fetch(
+      `https://api.openai.com/v1/realtime?model=${process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2024-12-17"}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${ephemeralKey}`,
+          "Content-Type": "application/sdp",
+        },
+        body: sdpOffer,
+      }
+    );
+
+    if (!realtimeResponse.ok) {
+      const err = await realtimeResponse.text();
+      return res.status(realtimeResponse.status).send(err);
+    }
+
+    const sdpAnswer = await realtimeResponse.text();
+    res.type("application/sdp").send(sdpAnswer);
+  } catch (e) {
+    console.error("Session error:", e);
+    res.status(500).send(String(e));
+  }
+});
+
 app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
