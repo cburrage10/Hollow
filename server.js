@@ -1134,17 +1134,18 @@ app.post("/library/vision", upload.single("image"), async (req, res) => {
 // LIBRARY CHAT ENDPOINTS
 // ==========================================
 
-// Get chat key for a reading
-function getLibraryChatKey(readingId) {
-  return `library:chat:${readingId}`;
+// Get chat key for a reading (companion-specific)
+function getLibraryChatKey(readingId, companion = "hollow") {
+  return `library:chat:${readingId}:${companion}`;
 }
 
-// Get chat history for a reading
+// Get chat history for a reading (companion-specific)
 app.get("/library/readings/:id/chat", async (req, res) => {
   const { id } = req.params;
+  const companion = req.query.companion || "hollow";
 
   try {
-    const key = getLibraryChatKey(id);
+    const key = getLibraryChatKey(id, companion);
     const history = await redis.lrange(key, 0, 99);
 
     // Parse and reverse to chronological order
@@ -1202,8 +1203,11 @@ app.post("/library/readings/:id/chat", async (req, res) => {
     // Remove @mention from the message for cleaner context
     const cleanedText = text.replace(/@(hollow|rhys|both)\b/gi, "").trim();
 
+    // Use companion-specific chat key (hollow, rhys, or both each have their own history)
+    const chatCompanion = companion || "hollow";
+    const chatKey = getLibraryChatKey(id, chatCompanion);
+
     // Get chat history for context
-    const chatKey = getLibraryChatKey(id);
     const existingHistory = await redis.lrange(chatKey, 0, 19);
     const historyContext = (existingHistory || []).reverse().map(entry => {
       try {
@@ -1349,10 +1353,11 @@ The user wants to discuss what they're reading with you. Respond naturally and c
   }
 });
 
-// Clear chat history for a reading
+// Clear chat history for a reading (companion-specific)
 app.delete("/library/readings/:id/chat", async (req, res) => {
   const { id } = req.params;
-  const key = getLibraryChatKey(id);
+  const companion = req.query.companion || "hollow";
+  const key = getLibraryChatKey(id, companion);
   await redis.del(key);
   res.json({ success: true });
 });

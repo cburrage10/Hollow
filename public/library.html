@@ -1950,16 +1950,20 @@
     chatPanel.classList.remove('show');
   };
 
-  // Companion selector
+  // Companion selector - reload chat history when switching
   document.querySelectorAll('.companion-option').forEach(btn => {
     btn.onclick = () => {
       document.querySelectorAll('.companion-option').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       selectedCompanion = btn.dataset.companion;
+      // Load this companion's separate chat history
+      if (currentReadingId) {
+        loadChatHistory();
+      }
     };
   });
 
-  // Load chat history for current reading
+  // Load chat history for current reading (companion-specific)
   async function loadChatHistory() {
     if (!currentReadingId) {
       noReadingMsg.style.display = 'block';
@@ -1969,7 +1973,7 @@
     noReadingMsg.style.display = 'none';
 
     try {
-      const r = await fetch(`/library/readings/${currentReadingId}/chat`);
+      const r = await fetch(`/library/readings/${currentReadingId}/chat?companion=${selectedCompanion}`);
       const data = await r.json();
       chatHistory = data.history || [];
       renderChatMessages();
@@ -1982,9 +1986,11 @@
 
   function renderChatMessages() {
     if (chatHistory.length === 0) {
+      const companionLabel = selectedCompanion === 'both' ? 'Hollow & Rhys' :
+        selectedCompanion.charAt(0).toUpperCase() + selectedCompanion.slice(1);
       chatMessages.innerHTML = `
         <div class="no-reading-msg">
-          Start a conversation about what you're reading!
+          Start a conversation with ${companionLabel} about what you're reading!
         </div>
       `;
       return;
