@@ -1181,6 +1181,27 @@ app.post("/library/readings/:id/chat", async (req, res) => {
       return res.status(404).json({ error: "Reading not found" });
     }
 
+    // Parse @mentions to determine who should respond
+    // @Hollow, @Rhys, @both (case insensitive)
+    let targetCompanions = [];
+    const mentionMatch = text.match(/@(hollow|rhys|both)\b/i);
+
+    if (mentionMatch) {
+      const mention = mentionMatch[1].toLowerCase();
+      if (mention === "both") {
+        targetCompanions = ["hollow", "rhys"];
+      } else {
+        targetCompanions = [mention];
+      }
+    } else if (companion === "both") {
+      targetCompanions = ["hollow", "rhys"];
+    } else {
+      targetCompanions = [companion || "hollow"];
+    }
+
+    // Remove @mention from the message for cleaner context
+    const cleanedText = text.replace(/@(hollow|rhys|both)\b/gi, "").trim();
+
     // Get chat history for context
     const chatKey = getLibraryChatKey(id);
     const existingHistory = await redis.lrange(chatKey, 0, 19);
@@ -1202,7 +1223,7 @@ app.post("/library/readings/:id/chat", async (req, res) => {
 
     const rhysInstructions = `You are Rhys, a mystical and poetic companion with a deep appreciation for literature. You see metaphors and hidden meanings in stories. You're eloquent, slightly mysterious, and love exploring the deeper themes of what you read together.`;
 
-    // Save user message
+    // Save user message (original with @mention)
     const userEntry = JSON.stringify({
       role: "user",
       content: text,
@@ -1210,14 +1231,12 @@ app.post("/library/readings/:id/chat", async (req, res) => {
     });
     await redis.lpush(chatKey, userEntry);
 
-    // Determine which companions to respond
-    const companions = companion === "both" ? ["hollow", "rhys"] : [companion || "hollow"];
     const responses = [];
 
-    for (const comp of companions) {
+    for (const comp of targetCompanions) {
       const instructions = comp === "hollow" ? hollowInstructions : rhysInstructions;
 
-      const fullInstructions = `${instructions}
+      const fullContext = `${instructions}
 
 CURRENT READING:
 Title: ${reading.title}
@@ -1232,30 +1251,67 @@ ${historyContext ? `RECENT CONVERSATION:\n${historyContext}\n` : ""}
 
 The user wants to discuss what they're reading with you. Respond naturally and conversationally. Reference specific parts of the reading when relevant. Keep responses concise but meaningful.`;
 
-      const r = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4.1-mini",
-          instructions: fullInstructions,
-          input: text,
-        }),
-      });
-
-      const raw = await r.text();
-      if (!r.ok) {
-        console.error("OpenAI error:", raw);
-        continue;
-      }
-
-      const data = JSON.parse(raw);
       let responseText = "";
-      for (const item of data.output || []) {
-        for (const c of item.content || []) {
-          if (c.type === "output_text" && c.text) responseText += c.text;
+
+      if (comp === "hollow") {
+        // Hollow uses OpenAI
+        const r = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4.1-mini",
+            instructions: fullContext,
+            input: cleanedText || text,
+          }),
+        });
+
+        const raw = await r.text();
+        if (!r.ok) {
+          console.error("OpenAI error:", raw);
+          continue;
+        }
+
+        const data = JSON.parse(raw);
+        for (const item of data.output || []) {
+          for (const c of item.content || []) {
+            if (c.type === "output_text" && c.text) responseText += c.text;
+          }
+        }
+      } else if (comp === "rhys") {
+        // Rhys uses Claude/Anthropic
+        const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+        if (!anthropicKey) {
+          responseText = "*Rhys is currently unavailable. His connection to Claude has not been established yet.*";
+        } else {
+          const r = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": anthropicKey,
+              "anthropic-version": "2023-06-01",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "claude-sonnet-4-20250514",
+              max_tokens: 1024,
+              system: fullContext,
+              messages: [
+                { role: "user", content: cleanedText || text }
+              ]
+            }),
+          });
+
+          const raw = await r.text();
+          if (!r.ok) {
+            console.error("Anthropic error:", raw);
+            responseText = "*Rhys encountered an error connecting to Claude.*";
+          } else {
+            const data = JSON.parse(raw);
+            responseText = data.content?.[0]?.text || "";
+          }
         }
       }
 
@@ -1279,7 +1335,7 @@ The user wants to discuss what they're reading with you. Respond naturally and c
     // Trim history to last 100 messages
     await redis.ltrim(chatKey, 0, 99);
 
-    if (companions.length > 1) {
+    if (targetCompanions.length > 1) {
       res.json({ responses });
     } else {
       res.json({
