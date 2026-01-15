@@ -50,6 +50,11 @@ app.get("/shared", (req, res) => {
   res.sendFile("shared.html", { root: "public" });
 });
 
+// Route for Library
+app.get("/library", (req, res) => {
+  res.sendFile("library.html", { root: "public" });
+});
+
 // Parse JSON bodies for /chat
 app.use(express.json());
 
@@ -63,6 +68,10 @@ const SESSIONS_KEY = "hollow:sessions"; // List of all session IDs
 const PROJECT_FILES_KEY = "hollow:project_files";
 const MAX_HISTORY = 100;
 const MAX_FILE_CONTENT = 50000; // Max chars per file to store
+
+// Library Keys
+const LIBRARY_READINGS_KEY = "library:readings";
+const LIBRARY_VOICES_KEY = "library:voices";
 
 // Generate a short session ID
 function generateSessionId() {
@@ -811,6 +820,314 @@ app.get("/memories", async (req, res) => {
   }
   const memories = await getMemories();
   res.json({ memories });
+});
+
+// ==========================================
+// LIBRARY ENDPOINTS
+// ==========================================
+
+// Library helper functions
+async function getLibraryReadings() {
+  try {
+    const readings = await redis.get(LIBRARY_READINGS_KEY);
+    return readings || [];
+  } catch (e) {
+    console.error("Error getting library readings:", e);
+    return [];
+  }
+}
+
+async function saveLibraryReadings(readings) {
+  try {
+    await redis.set(LIBRARY_READINGS_KEY, readings);
+  } catch (e) {
+    console.error("Error saving library readings:", e);
+  }
+}
+
+async function getLibraryVoices() {
+  try {
+    const voices = await redis.get(LIBRARY_VOICES_KEY);
+    return voices || [];
+  } catch (e) {
+    console.error("Error getting library voices:", e);
+    return [];
+  }
+}
+
+async function saveLibraryVoices(voices) {
+  try {
+    await redis.set(LIBRARY_VOICES_KEY, voices);
+  } catch (e) {
+    console.error("Error saving library voices:", e);
+  }
+}
+
+// Get all readings
+app.get("/library/readings", async (req, res) => {
+  const readings = await getLibraryReadings();
+  // Return without full text for listing
+  const readingList = readings.map(r => ({
+    id: r.id,
+    title: r.title,
+    url: r.url,
+    source: r.source,
+    wordCount: r.wordCount,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt
+  }));
+  res.json({ readings: readingList });
+});
+
+// Create a new reading
+app.post("/library/readings", async (req, res) => {
+  try {
+    const { title, url, text, source } = req.body;
+
+    if (!title || !text) {
+      return res.status(400).json({ error: "Title and text are required" });
+    }
+
+    const readings = await getLibraryReadings();
+    const id = crypto.randomBytes(4).toString("hex");
+
+    // Truncate if too long
+    const truncatedText = text.length > MAX_FILE_CONTENT
+      ? text.substring(0, MAX_FILE_CONTENT) + "\n...[truncated]"
+      : text;
+
+    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+
+    const reading = {
+      id,
+      title,
+      url: url || null,
+      text: truncatedText,
+      source: source || "manual",
+      wordCount,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    readings.unshift(reading);
+    await saveLibraryReadings(readings);
+
+    res.json({ success: true, id, title });
+  } catch (e) {
+    console.error("Error creating reading:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Get a specific reading
+app.get("/library/readings/:id", async (req, res) => {
+  const { id } = req.params;
+  const readings = await getLibraryReadings();
+  const reading = readings.find(r => r.id === id);
+
+  if (!reading) {
+    return res.status(404).json({ error: "Reading not found" });
+  }
+
+  res.json({ reading });
+});
+
+// Update a reading
+app.patch("/library/readings/:id", async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  const readings = await getLibraryReadings();
+  const reading = readings.find(r => r.id === id);
+
+  if (!reading) {
+    return res.status(404).json({ error: "Reading not found" });
+  }
+
+  // Update allowed fields
+  if (updates.title) reading.title = updates.title;
+  if (updates.url !== undefined) reading.url = updates.url;
+  if (updates.text) {
+    reading.text = updates.text.length > MAX_FILE_CONTENT
+      ? updates.text.substring(0, MAX_FILE_CONTENT) + "\n...[truncated]"
+      : updates.text;
+    reading.wordCount = updates.text.split(/\s+/).filter(w => w.length > 0).length;
+  }
+  if (updates.progress !== undefined) reading.progress = updates.progress;
+
+  reading.updatedAt = Date.now();
+  await saveLibraryReadings(readings);
+
+  res.json({ success: true });
+});
+
+// Delete a reading
+app.delete("/library/readings/:id", async (req, res) => {
+  const { id } = req.params;
+  const readings = await getLibraryReadings();
+  const index = readings.findIndex(r => r.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: "Reading not found" });
+  }
+
+  readings.splice(index, 1);
+  await saveLibraryReadings(readings);
+
+  res.json({ success: true });
+});
+
+// Get all voices
+app.get("/library/voices", async (req, res) => {
+  const voices = await getLibraryVoices();
+  res.json({ voices });
+});
+
+// Add a new voice
+app.post("/library/voices", async (req, res) => {
+  try {
+    const { name, voiceId, notes } = req.body;
+
+    if (!name || !voiceId) {
+      return res.status(400).json({ error: "Name and voiceId are required" });
+    }
+
+    const voices = await getLibraryVoices();
+    const id = crypto.randomBytes(4).toString("hex");
+
+    voices.push({
+      id,
+      name,
+      voiceId,
+      notes: notes || "",
+      createdAt: Date.now()
+    });
+
+    await saveLibraryVoices(voices);
+    res.json({ success: true, id });
+  } catch (e) {
+    console.error("Error adding voice:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Delete a voice
+app.delete("/library/voices/:id", async (req, res) => {
+  const { id } = req.params;
+  const voices = await getLibraryVoices();
+  const index = voices.findIndex(v => v.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: "Voice not found" });
+  }
+
+  voices.splice(index, 1);
+  await saveLibraryVoices(voices);
+
+  res.json({ success: true });
+});
+
+// TTS endpoint - generates speech using ElevenLabs
+app.post("/library/tts", async (req, res) => {
+  try {
+    const { text, voiceId } = req.body;
+
+    if (!text || !voiceId) {
+      return res.status(400).json({ error: "Text and voiceId are required" });
+    }
+
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "ElevenLabs API key not configured" });
+    }
+
+    // Limit text length
+    const truncatedText = text.substring(0, 5000);
+
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: truncatedText,
+        model_id: "eleven_monolingual_v1",
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.text();
+      console.error("ElevenLabs error:", err);
+      return res.status(r.status).json({ error: `TTS failed: ${err}` });
+    }
+
+    const audioBuffer = await r.arrayBuffer();
+    res.type("audio/mpeg").send(Buffer.from(audioBuffer));
+  } catch (e) {
+    console.error("TTS error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Vision capture endpoint - extracts text from image using OpenAI Vision
+app.post("/library/vision", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
+
+    const file = req.file;
+
+    if (!file.mimetype.startsWith("image/")) {
+      return res.status(400).json({ error: "File must be an image" });
+    }
+
+    const base64Image = file.buffer.toString("base64");
+    const mimeType = file.mimetype;
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a text extraction assistant. Extract all readable text from the image and return it exactly as it appears. Preserve paragraph breaks. Do not add any commentary or explanation - just return the extracted text."
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extract all the text from this image:" },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+            ]
+          }
+        ],
+        max_tokens: 4000
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.text();
+      return res.status(r.status).json({ error: `Vision extraction failed: ${err}` });
+    }
+
+    const data = await r.json();
+    const extractedText = data.choices?.[0]?.message?.content || "";
+
+    res.json({ text: extractedText });
+  } catch (e) {
+    console.error("Vision error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {

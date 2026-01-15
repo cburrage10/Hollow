@@ -1,0 +1,1604 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>The Library | The Cathedral</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      background: #1a1a1a;
+      color: #f5f1e8;
+    }
+
+    .bg-layer {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: url('./bg.jpg') center center / cover no-repeat;
+      z-index: -2;
+    }
+    .bg-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 25, 35, 0.75);
+      z-index: -1;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 280px;
+      background: rgba(15, 25, 35, 0.95);
+      border-right: 1px solid rgba(30, 90, 102, 0.3);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      backdrop-filter: blur(10px);
+    }
+
+    .sidebar-header {
+      padding: 12px;
+      border-bottom: 1px solid rgba(30, 90, 102, 0.3);
+    }
+
+    .sidebar-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-header h2 { margin: 0; font-size: 1rem; color: #1e5a66; }
+
+    #newReadingBtn {
+      padding: 6px 10px;
+      background: rgba(30, 90, 102, 0.8);
+      color: #f5f1e8;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    #newReadingBtn:hover { background: #1e5a66; }
+
+    #searchInput {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #f5f1e8;
+    }
+    #searchInput::placeholder { color: #888; }
+
+    #readingList {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .reading-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #ccc;
+    }
+
+    .reading-item:hover { background: rgba(30, 90, 102, 0.15); }
+    .reading-item.active { background: rgba(30, 90, 102, 0.25); color: #1e5a66; }
+
+    .reading-info { flex: 1; min-width: 0; }
+
+    .reading-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .reading-meta {
+      font-size: 11px;
+      color: #777;
+      margin-top: 2px;
+    }
+
+    .reading-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+    }
+
+    .reading-item:hover .reading-actions { opacity: 1; }
+
+    .reading-action-btn {
+      background: none;
+      border: none;
+      color: #999;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .reading-action-btn:hover { color: #1e5a66; }
+
+    /* Sidebar Tools Section */
+    .sidebar-tools {
+      padding: 12px;
+      border-top: 1px solid rgba(30, 90, 102, 0.3);
+    }
+
+    .sidebar-tools h3 {
+      font-size: 12px;
+      color: #1e5a66;
+      margin: 0 0 10px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .tool-btn {
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: rgba(30, 90, 102, 0.1);
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 8px;
+      color: #f5f1e8;
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .tool-btn:hover {
+      background: rgba(30, 90, 102, 0.2);
+      border-color: #1e5a66;
+    }
+
+    .tool-btn .icon { margin-right: 8px; }
+
+    /* Main content */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    header {
+      padding: 10px 16px;
+      background: rgba(15, 25, 35, 0.9);
+      border-bottom: 1px solid rgba(30, 90, 102, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      backdrop-filter: blur(10px);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    #menuBtn {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      color: #f5f1e8;
+    }
+
+    .home-btn {
+      font-size: 20px;
+      text-decoration: none;
+      padding: 4px;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .home-btn:hover { opacity: 1; }
+
+    h1 { margin: 0; font-size: 1.1rem; color: #1e5a66; }
+
+    #status {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #999;
+    }
+    #status.connected { background: rgba(30, 90, 102, 0.2); color: #1e5a66; }
+
+    .header-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      color: #f5f1e8;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .header-btn:hover { background: rgba(30, 90, 102, 0.2); border-color: #1e5a66; }
+    .header-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #voiceCount, #readingCount {
+      font-size: 11px;
+      color: #1e5a66;
+      padding: 4px 8px;
+      background: rgba(30, 90, 102, 0.15);
+      border-radius: 12px;
+    }
+
+    /* Reading Panel */
+    #readingPanel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #readingContent {
+      max-width: 700px;
+      width: 100%;
+      background: rgba(20, 30, 40, 0.6);
+      border: 1px solid rgba(30, 90, 102, 0.2);
+      border-radius: 12px;
+      padding: 40px;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 18px;
+      line-height: 1.8;
+      color: #f5f1e8;
+      min-height: 400px;
+    }
+
+    #readingContent.empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #888;
+      font-family: system-ui;
+      font-size: 16px;
+    }
+
+    #readingContent.empty .welcome-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    #readingContent.empty h2 {
+      color: #1e5a66;
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    #readingContent.empty p {
+      max-width: 400px;
+      line-height: 1.6;
+    }
+
+    #readingTitle {
+      font-size: 28px;
+      font-weight: bold;
+      color: #1e5a66;
+      margin-bottom: 8px;
+      font-family: Georgia, serif;
+    }
+
+    #readingMeta {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(30, 90, 102, 0.2);
+    }
+
+    #readingText {
+      white-space: pre-wrap;
+    }
+
+    #readingText::selection {
+      background: rgba(30, 90, 102, 0.4);
+    }
+
+    /* TTS Controls */
+    #ttsControls {
+      padding: 16px;
+      background: rgba(15, 25, 35, 0.95);
+      border-top: 1px solid rgba(30, 90, 102, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      backdrop-filter: blur(10px);
+    }
+
+    .tts-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tts-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s;
+    }
+
+    #ttsPlay {
+      background: rgba(30, 90, 102, 0.9);
+      color: #f5f1e8;
+    }
+    #ttsPlay:hover { background: #1e5a66; }
+    #ttsPlay.playing { background: #ff6b6b; }
+
+    #ttsStop, #ttsSkipBack, #ttsSkipForward {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      color: #f5f1e8;
+    }
+    #ttsStop:hover, #ttsSkipBack:hover, #ttsSkipForward:hover {
+      background: rgba(30, 90, 102, 0.2);
+      border-color: #1e5a66;
+    }
+
+    .tts-voice-select {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tts-voice-select label {
+      font-size: 13px;
+      color: #888;
+    }
+
+    #voiceSelect {
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 6px;
+      color: #f5f1e8;
+      font-size: 13px;
+      min-width: 150px;
+    }
+
+    .tts-speed {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tts-speed label {
+      font-size: 13px;
+      color: #888;
+    }
+
+    #speedSelect {
+      padding: 8px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 6px;
+      color: #f5f1e8;
+      font-size: 13px;
+    }
+
+    .tts-progress {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 200px;
+    }
+
+    #ttsProgressBar {
+      flex: 1;
+      height: 6px;
+      background: rgba(30, 90, 102, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    #ttsProgressFill {
+      height: 100%;
+      background: #1e5a66;
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    #ttsProgressText {
+      font-size: 12px;
+      color: #888;
+      min-width: 80px;
+      text-align: right;
+    }
+
+    footer {
+      padding: 8px 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #1e5a66;
+      background: rgba(15, 25, 35, 0.9);
+      border-top: 1px solid rgba(30, 90, 102, 0.3);
+    }
+
+    /* Modals */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show { display: flex; }
+
+    .modal-content {
+      background: rgba(20, 30, 40, 0.98);
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 90%;
+      max-height: 80%;
+      overflow-y: auto;
+      min-width: 320px;
+      color: #f5f1e8;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-header h2 { margin: 0; font-size: 1.1rem; color: #1e5a66; }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+    }
+    .close-btn:hover { color: #1e5a66; }
+
+    /* Voice Item */
+    .voice-item {
+      padding: 14px;
+      background: rgba(30, 90, 102, 0.1);
+      border: 1px solid rgba(30, 90, 102, 0.2);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .voice-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .voice-name {
+      font-size: 16px;
+      font-weight: 500;
+      color: #1e5a66;
+    }
+
+    .voice-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .voice-action-btn {
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      background: rgba(0, 0, 0, 0.2);
+      color: #f5f1e8;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .voice-action-btn:hover { background: rgba(30, 90, 102, 0.3); }
+    .voice-action-btn.delete { border-color: #ff6b6b; color: #ff6b6b; }
+    .voice-action-btn.delete:hover { background: rgba(255, 107, 107, 0.2); }
+
+    .voice-id {
+      font-size: 12px;
+      color: #888;
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+
+    .voice-notes {
+      font-size: 13px;
+      color: #aaa;
+      font-style: italic;
+    }
+
+    /* Form inputs in modals */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #f5f1e8;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: #1e5a66;
+    }
+
+    .form-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .btn-primary {
+      padding: 10px 20px;
+      background: rgba(30, 90, 102, 0.9);
+      color: #f5f1e8;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .btn-primary:hover { background: #1e5a66; }
+
+    .btn-secondary {
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #f5f1e8;
+      border: 1px solid rgba(30, 90, 102, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-secondary:hover { background: rgba(30, 90, 102, 0.2); }
+
+    .no-results { color: #888; font-style: italic; text-align: center; padding: 20px; }
+
+    /* Bookmarklet display */
+    .bookmarklet-container {
+      padding: 16px;
+      background: rgba(30, 90, 102, 0.1);
+      border: 1px dashed rgba(30, 90, 102, 0.4);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .bookmarklet-link {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #1e5a66;
+      color: #f5f1e8;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: grab;
+      margin-bottom: 12px;
+    }
+
+    .bookmarklet-link:hover {
+      background: #2a7a8a;
+    }
+
+    .bookmarklet-instructions {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.6;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(30, 90, 102, 0.95);
+      color: #f5f1e8;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 200;
+      font-weight: 500;
+    }
+
+    #toast.show { opacity: 1; }
+
+    /* Vision capture preview */
+    #capturePreview {
+      width: 100%;
+      max-height: 300px;
+      object-fit: contain;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    #capturePreview.show { display: block; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.2s;
+      }
+      #sidebar.show { transform: translateX(0); }
+      #menuBtn { display: block; }
+
+      #readingPanel { padding: 20px; }
+      #readingContent { padding: 20px; font-size: 16px; }
+      #readingTitle { font-size: 22px; }
+
+      #ttsControls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+      .tts-progress { min-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-layer"></div>
+  <div class="bg-overlay"></div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-header-row">
+        <h2>Readings</h2>
+        <button id="newReadingBtn">+ Add</button>
+      </div>
+      <input type="text" id="searchInput" placeholder="Search library...">
+    </div>
+    <div id="readingList"></div>
+
+    <div class="sidebar-tools">
+      <h3>Capture Tools</h3>
+      <button class="tool-btn" id="extensionBtn">
+        <span class="icon">🔌</span> Browser Extension
+      </button>
+      <button class="tool-btn" id="bookmarkletBtn">
+        <span class="icon">🔖</span> Bookmarklet
+      </button>
+      <button class="tool-btn" id="visionCaptureBtn">
+        <span class="icon">📷</span> Screen Capture
+      </button>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div id="main">
+    <header>
+      <div class="header-left">
+        <a href="/" class="home-btn" title="Back to Cathedral">🏛️</a>
+        <button id="menuBtn">☰</button>
+        <h1>Library</h1>
+        <div id="status">Ready</div>
+      </div>
+      <div class="header-right">
+        <span id="readingCount">0 readings</span>
+        <span id="voiceCount">0 voices</span>
+        <button class="header-btn" id="settingsBtn">Settings</button>
+        <button class="header-btn" id="voicesBtn">Voices</button>
+      </div>
+    </header>
+
+    <div id="readingPanel">
+      <div id="readingContent" class="empty">
+        <div class="welcome-icon">📚</div>
+        <h2>Welcome to the Library</h2>
+        <p>Add a reading using the sidebar tools, or capture text from any webpage using the browser extension, bookmarklet, or screen capture.</p>
+      </div>
+    </div>
+
+    <div id="ttsControls">
+      <div class="tts-buttons">
+        <button class="tts-btn" id="ttsSkipBack" title="Back 30s">⏪</button>
+        <button class="tts-btn" id="ttsPlay" title="Play/Pause">▶</button>
+        <button class="tts-btn" id="ttsStop" title="Stop">⏹</button>
+        <button class="tts-btn" id="ttsSkipForward" title="Forward 30s">⏩</button>
+      </div>
+
+      <div class="tts-voice-select">
+        <label>Voice:</label>
+        <select id="voiceSelect">
+          <option value="">Select a voice...</option>
+        </select>
+      </div>
+
+      <div class="tts-speed">
+        <label>Speed:</label>
+        <select id="speedSelect">
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="1" selected>1x</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2x</option>
+        </select>
+      </div>
+
+      <div class="tts-progress">
+        <div id="ttsProgressBar">
+          <div id="ttsProgressFill"></div>
+        </div>
+        <span id="ttsProgressText">0:00 / 0:00</span>
+      </div>
+    </div>
+
+    <footer>A space of endless knowledge 📚</footer>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Voices Modal -->
+  <div class="modal" id="voicesModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Voice Configuration</h2>
+        <button class="close-btn" id="closeVoicesModal">&times;</button>
+      </div>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">Configure ElevenLabs voices for narration. Each voice can be assigned a character name.</p>
+      <div id="voicesList"></div>
+      <hr style="border-color: rgba(30, 90, 102, 0.2); margin: 20px 0;">
+      <h3 style="color: #1e5a66; font-size: 14px; margin-bottom: 12px;">Add New Voice</h3>
+      <div class="form-group">
+        <label>Character Name</label>
+        <input type="text" id="newVoiceName" placeholder="e.g., Elias, Hollow, Rhys">
+      </div>
+      <div class="form-group">
+        <label>ElevenLabs Voice ID</label>
+        <input type="text" id="newVoiceId" placeholder="e.g., 21m00Tcm4TlvDq8ikWAM">
+      </div>
+      <div class="form-group">
+        <label>Voice Notes (optional)</label>
+        <textarea id="newVoiceNotes" placeholder="e.g., Warm storyteller voice, good for fantasy..."></textarea>
+      </div>
+      <button class="btn-primary" id="addVoiceBtn">Add Voice</button>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-content" style="width: 450px;">
+      <div class="modal-header">
+        <h2>Library Settings</h2>
+        <button class="close-btn" id="closeSettingsModal">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>ElevenLabs API Key</label>
+        <input type="password" id="elevenLabsApiKey" placeholder="Enter your API key...">
+        <p style="font-size: 11px; color: #888; margin-top: 4px;">Your key is stored locally in your browser.</p>
+      </div>
+      <div class="form-group">
+        <label>Default Reading Speed</label>
+        <select id="defaultSpeed" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(30,90,102,0.3); border-radius: 8px; color: #f5f1e8;">
+          <option value="1">1x (Normal)</option>
+          <option value="1.25">1.25x</option>
+          <option value="1.5">1.5x</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Server URL (for extension)</label>
+        <input type="text" id="serverUrl" value="" placeholder="https://your-app.railway.app">
+      </div>
+      <button class="btn-primary" id="saveSettingsBtn">Save Settings</button>
+    </div>
+  </div>
+
+  <!-- Add Reading Modal -->
+  <div class="modal" id="addReadingModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Add Reading</h2>
+        <button class="close-btn" id="closeAddReadingModal">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="addReadingTitle" placeholder="Enter a title...">
+      </div>
+      <div class="form-group">
+        <label>Source URL (optional)</label>
+        <input type="text" id="addReadingUrl" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>Text Content</label>
+        <textarea id="addReadingText" placeholder="Paste your text here..." style="min-height: 200px;"></textarea>
+      </div>
+      <button class="btn-primary" id="saveReadingBtn">Save Reading</button>
+    </div>
+  </div>
+
+  <!-- Bookmarklet Modal -->
+  <div class="modal" id="bookmarkletModal">
+    <div class="modal-content" style="width: 450px;">
+      <div class="modal-header">
+        <h2>Bookmarklet</h2>
+        <button class="close-btn" id="closeBookmarkletModal">&times;</button>
+      </div>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">Drag the button below to your bookmarks bar. Click it on any webpage to capture text.</p>
+      <div class="bookmarklet-container">
+        <a class="bookmarklet-link" id="bookmarkletLink" href="#">📖 Send to Library</a>
+        <p class="bookmarklet-instructions">
+          Drag this button to your bookmarks bar.<br>
+          When on a page you want to read, click the bookmark.<br>
+          Selected text or the full page will be sent to your Library.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extension Modal -->
+  <div class="modal" id="extensionModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Browser Extension</h2>
+        <button class="close-btn" id="closeExtensionModal">&times;</button>
+      </div>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">The browser extension allows you to capture text from Kindle Cloud Reader and any webpage.</p>
+
+      <h3 style="color: #1e5a66; font-size: 14px; margin: 16px 0 8px;">Chrome Installation</h3>
+      <ol style="color: #ccc; font-size: 13px; line-height: 1.8; padding-left: 20px;">
+        <li>Download the extension folder from the project</li>
+        <li>Open Chrome and go to <code style="background: rgba(30,90,102,0.2); padding: 2px 6px; border-radius: 4px;">chrome://extensions</code></li>
+        <li>Enable "Developer mode" (toggle in top right)</li>
+        <li>Click "Load unpacked" and select the extension folder</li>
+        <li>The extension icon will appear in your toolbar</li>
+      </ol>
+
+      <h3 style="color: #1e5a66; font-size: 14px; margin: 16px 0 8px;">Safari Installation (iOS/macOS)</h3>
+      <ol style="color: #ccc; font-size: 13px; line-height: 1.8; padding-left: 20px;">
+        <li>Safari Web Extensions require Xcode to package</li>
+        <li>Open the Safari extension project in Xcode</li>
+        <li>Build and run to install on your device</li>
+        <li>Enable in Safari Settings > Extensions</li>
+      </ol>
+
+      <div style="margin-top: 20px; padding: 12px; background: rgba(30,90,102,0.1); border-radius: 8px;">
+        <strong style="color: #1e5a66;">Your Server URL:</strong>
+        <code id="extensionServerUrl" style="display: block; margin-top: 6px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; font-size: 12px; word-break: break-all;"></code>
+        <p style="font-size: 11px; color: #888; margin-top: 6px;">Configure this URL in the extension settings.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vision Capture Modal -->
+  <div class="modal" id="visionModal">
+    <div class="modal-content" style="width: 600px;">
+      <div class="modal-header">
+        <h2>Screen Capture</h2>
+        <button class="close-btn" id="closeVisionModal">&times;</button>
+      </div>
+      <p style="color: #888; font-size: 13px; margin-bottom: 16px;">Share your screen or a browser tab to capture text using AI vision. Great for DRM-protected content.</p>
+
+      <img id="capturePreview" src="" alt="Capture preview">
+
+      <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <button class="btn-primary" id="startCaptureBtn">📷 Start Screen Share</button>
+        <button class="btn-secondary" id="captureFrameBtn" disabled>📸 Capture Frame</button>
+        <button class="btn-secondary" id="stopCaptureBtn" disabled>⏹ Stop</button>
+      </div>
+
+      <div id="capturedTextContainer" style="display: none;">
+        <h3 style="color: #1e5a66; font-size: 14px; margin-bottom: 8px;">Captured Text</h3>
+        <textarea id="capturedText" style="width: 100%; min-height: 150px; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid rgba(30,90,102,0.3); border-radius: 8px; color: #f5f1e8; font-size: 14px;"></textarea>
+        <div style="display: flex; gap: 10px; margin-top: 12px;">
+          <button class="btn-primary" id="addCapturedBtn">Add to Library</button>
+          <button class="btn-secondary" id="appendCapturedBtn">Append to Current</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // State
+  let readings = [];
+  let voices = [];
+  let currentReadingId = null;
+  let currentAudio = null;
+  let isPlaying = false;
+  let mediaStream = null;
+  let videoElement = null;
+
+  // DOM Elements
+  const readingPanel = document.getElementById('readingPanel');
+  const readingContent = document.getElementById('readingContent');
+  const readingList = document.getElementById('readingList');
+  const sidebar = document.getElementById('sidebar');
+  const voiceSelect = document.getElementById('voiceSelect');
+
+  // Toast notification
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // Format time
+  function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  // Load readings from server
+  async function loadReadings() {
+    try {
+      const r = await fetch('/library/readings');
+      const data = await r.json();
+      readings = data.readings || [];
+      renderReadings();
+      updateReadingCount();
+    } catch (e) {
+      console.error('Failed to load readings:', e);
+      readings = [];
+      renderReadings();
+    }
+  }
+
+  function renderReadings() {
+    if (readings.length === 0) {
+      readingList.innerHTML = '<p class="no-results">No readings yet</p>';
+      return;
+    }
+
+    readingList.innerHTML = readings.map(r => `
+      <div class="reading-item ${r.id === currentReadingId ? 'active' : ''}" data-id="${r.id}">
+        <div class="reading-info">
+          <div class="reading-title">${r.title}</div>
+          <div class="reading-meta">${r.wordCount || 0} words • ${formatDate(r.createdAt)}</div>
+        </div>
+        <div class="reading-actions">
+          <button class="reading-action-btn reading-delete" data-id="${r.id}" title="Delete">×</button>
+        </div>
+      </div>
+    `).join('');
+
+    readingList.querySelectorAll('.reading-item').forEach(el => {
+      el.onclick = (e) => {
+        if (!e.target.classList.contains('reading-action-btn')) {
+          selectReading(el.dataset.id);
+        }
+      };
+    });
+
+    readingList.querySelectorAll('.reading-delete').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm('Delete this reading?')) {
+          await fetch(`/library/readings/${btn.dataset.id}`, { method: 'DELETE' });
+          if (btn.dataset.id === currentReadingId) {
+            currentReadingId = null;
+            showEmptyState();
+          }
+          await loadReadings();
+        }
+      };
+    });
+  }
+
+  async function selectReading(id) {
+    currentReadingId = id;
+    renderReadings();
+    sidebar.classList.remove('show');
+
+    // Fetch full reading details including text
+    try {
+      const r = await fetch(`/library/readings/${id}`);
+      const data = await r.json();
+      if (data.reading) {
+        displayReading(data.reading);
+      } else {
+        showToast('Error loading reading');
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  }
+
+  function displayReading(reading) {
+    readingContent.classList.remove('empty');
+    readingContent.innerHTML = `
+      <div id="readingTitle">${reading.title}</div>
+      <div id="readingMeta">
+        ${reading.url ? `<a href="${reading.url}" target="_blank" style="color: #1e5a66;">${reading.url}</a> • ` : ''}
+        ${reading.wordCount || 0} words • Added ${formatDate(reading.createdAt)}
+      </div>
+      <div id="readingText">${reading.text}</div>
+    `;
+
+    // Update progress bar estimate
+    const estimatedDuration = (reading.wordCount || 0) * 0.4; // ~0.4 sec per word
+    document.getElementById('ttsProgressText').textContent = `0:00 / ${formatDuration(estimatedDuration)}`;
+  }
+
+  function showEmptyState() {
+    readingContent.classList.add('empty');
+    readingContent.innerHTML = `
+      <div class="welcome-icon">📚</div>
+      <h2>Welcome to the Library</h2>
+      <p>Add a reading using the sidebar tools, or capture text from any webpage using the browser extension, bookmarklet, or screen capture.</p>
+    `;
+  }
+
+  function updateReadingCount() {
+    document.getElementById('readingCount').textContent = `${readings.length} ${readings.length === 1 ? 'reading' : 'readings'}`;
+  }
+
+  // Load voices from server
+  async function loadVoices() {
+    try {
+      const r = await fetch('/library/voices');
+      const data = await r.json();
+      voices = data.voices || [];
+      renderVoices();
+      updateVoiceSelect();
+      updateVoiceCount();
+    } catch (e) {
+      console.error('Failed to load voices:', e);
+      voices = [];
+    }
+  }
+
+  function renderVoices() {
+    const list = document.getElementById('voicesList');
+
+    if (voices.length === 0) {
+      list.innerHTML = '<p class="no-results">No voices configured yet.</p>';
+      return;
+    }
+
+    list.innerHTML = voices.map(v => `
+      <div class="voice-item">
+        <div class="voice-item-header">
+          <span class="voice-name">${v.name}</span>
+          <div class="voice-actions">
+            <button class="voice-action-btn preview-voice" data-id="${v.id}">Preview</button>
+            <button class="voice-action-btn delete voice-delete" data-id="${v.id}">Delete</button>
+          </div>
+        </div>
+        <div class="voice-id">ID: ${v.voiceId}</div>
+        ${v.notes ? `<div class="voice-notes">${v.notes}</div>` : ''}
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.preview-voice').forEach(btn => {
+      btn.onclick = () => previewVoice(btn.dataset.id);
+    });
+
+    list.querySelectorAll('.voice-delete').forEach(btn => {
+      btn.onclick = async () => {
+        if (confirm('Delete this voice?')) {
+          await fetch(`/library/voices/${btn.dataset.id}`, { method: 'DELETE' });
+          await loadVoices();
+        }
+      };
+    });
+  }
+
+  function updateVoiceSelect() {
+    voiceSelect.innerHTML = '<option value="">Select a voice...</option>' +
+      voices.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+  }
+
+  function updateVoiceCount() {
+    document.getElementById('voiceCount').textContent = `${voices.length} ${voices.length === 1 ? 'voice' : 'voices'}`;
+  }
+
+  async function previewVoice(voiceId) {
+    const voice = voices.find(v => v.id === voiceId);
+    if (!voice) return;
+
+    showToast('Generating preview...');
+
+    try {
+      const r = await fetch('/library/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: 'Hello, I am ready to read for you.',
+          voiceId: voice.voiceId
+        })
+      });
+
+      if (!r.ok) {
+        const err = await r.json();
+        showToast('Error: ' + (err.error || 'TTS failed'));
+        return;
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+      audio.onended = () => URL.revokeObjectURL(url);
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  }
+
+  // Add voice
+  document.getElementById('addVoiceBtn').onclick = async () => {
+    const name = document.getElementById('newVoiceName').value.trim();
+    const voiceId = document.getElementById('newVoiceId').value.trim();
+    const notes = document.getElementById('newVoiceNotes').value.trim();
+
+    if (!name || !voiceId) {
+      showToast('Name and Voice ID are required');
+      return;
+    }
+
+    try {
+      const r = await fetch('/library/voices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, voiceId, notes })
+      });
+
+      if (r.ok) {
+        document.getElementById('newVoiceName').value = '';
+        document.getElementById('newVoiceId').value = '';
+        document.getElementById('newVoiceNotes').value = '';
+        await loadVoices();
+        showToast('Voice added!');
+      } else {
+        const err = await r.json();
+        showToast('Error: ' + (err.error || 'Failed to add voice'));
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  // TTS Controls
+  document.getElementById('ttsPlay').onclick = async () => {
+    if (!currentReadingId) {
+      showToast('Select a reading first');
+      return;
+    }
+
+    const voiceId = voiceSelect.value;
+    if (!voiceId) {
+      showToast('Select a voice first');
+      return;
+    }
+
+    const reading = readings.find(r => r.id === currentReadingId);
+    const voice = voices.find(v => v.id === voiceId);
+
+    if (!reading || !voice) return;
+
+    if (isPlaying && currentAudio) {
+      currentAudio.pause();
+      isPlaying = false;
+      document.getElementById('ttsPlay').classList.remove('playing');
+      document.getElementById('ttsPlay').textContent = '▶';
+      return;
+    }
+
+    showToast('Generating audio...');
+    document.getElementById('ttsPlay').disabled = true;
+
+    try {
+      // Get selected text or use full text
+      const selection = window.getSelection();
+      const text = selection.toString().trim() || reading.text;
+
+      const r = await fetch('/library/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text.substring(0, 5000), // Limit to 5000 chars
+          voiceId: voice.voiceId
+        })
+      });
+
+      if (!r.ok) {
+        const err = await r.json();
+        showToast('Error: ' + (err.error || 'TTS failed'));
+        document.getElementById('ttsPlay').disabled = false;
+        return;
+      }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+
+      if (currentAudio) {
+        currentAudio.pause();
+        URL.revokeObjectURL(currentAudio.src);
+      }
+
+      currentAudio = new Audio(url);
+      currentAudio.playbackRate = parseFloat(document.getElementById('speedSelect').value);
+
+      currentAudio.onplay = () => {
+        isPlaying = true;
+        document.getElementById('ttsPlay').classList.add('playing');
+        document.getElementById('ttsPlay').textContent = '⏸';
+      };
+
+      currentAudio.onpause = () => {
+        document.getElementById('ttsPlay').textContent = '▶';
+      };
+
+      currentAudio.onended = () => {
+        isPlaying = false;
+        document.getElementById('ttsPlay').classList.remove('playing');
+        document.getElementById('ttsPlay').textContent = '▶';
+        URL.revokeObjectURL(url);
+      };
+
+      currentAudio.ontimeupdate = () => {
+        const progress = (currentAudio.currentTime / currentAudio.duration) * 100;
+        document.getElementById('ttsProgressFill').style.width = progress + '%';
+        document.getElementById('ttsProgressText').textContent =
+          `${formatDuration(currentAudio.currentTime)} / ${formatDuration(currentAudio.duration)}`;
+      };
+
+      currentAudio.play();
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+
+    document.getElementById('ttsPlay').disabled = false;
+  };
+
+  document.getElementById('ttsStop').onclick = () => {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      isPlaying = false;
+      document.getElementById('ttsPlay').classList.remove('playing');
+      document.getElementById('ttsPlay').textContent = '▶';
+      document.getElementById('ttsProgressFill').style.width = '0%';
+    }
+  };
+
+  document.getElementById('ttsSkipBack').onclick = () => {
+    if (currentAudio) {
+      currentAudio.currentTime = Math.max(0, currentAudio.currentTime - 30);
+    }
+  };
+
+  document.getElementById('ttsSkipForward').onclick = () => {
+    if (currentAudio) {
+      currentAudio.currentTime = Math.min(currentAudio.duration, currentAudio.currentTime + 30);
+    }
+  };
+
+  document.getElementById('speedSelect').onchange = (e) => {
+    if (currentAudio) {
+      currentAudio.playbackRate = parseFloat(e.target.value);
+    }
+  };
+
+  document.getElementById('ttsProgressBar').onclick = (e) => {
+    if (currentAudio && currentAudio.duration) {
+      const rect = e.target.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      currentAudio.currentTime = percent * currentAudio.duration;
+    }
+  };
+
+  // Add Reading Modal
+  document.getElementById('newReadingBtn').onclick = () => {
+    document.getElementById('addReadingModal').classList.add('show');
+  };
+
+  document.getElementById('closeAddReadingModal').onclick = () => {
+    document.getElementById('addReadingModal').classList.remove('show');
+  };
+
+  document.getElementById('saveReadingBtn').onclick = async () => {
+    const title = document.getElementById('addReadingTitle').value.trim();
+    const url = document.getElementById('addReadingUrl').value.trim();
+    const text = document.getElementById('addReadingText').value.trim();
+
+    if (!title || !text) {
+      showToast('Title and text are required');
+      return;
+    }
+
+    try {
+      const r = await fetch('/library/readings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, url, text, source: 'manual' })
+      });
+
+      if (r.ok) {
+        document.getElementById('addReadingTitle').value = '';
+        document.getElementById('addReadingUrl').value = '';
+        document.getElementById('addReadingText').value = '';
+        document.getElementById('addReadingModal').classList.remove('show');
+        await loadReadings();
+        showToast('Reading added!');
+      } else {
+        const err = await r.json();
+        showToast('Error: ' + (err.error || 'Failed'));
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  // Modals
+  document.getElementById('voicesBtn').onclick = () => {
+    document.getElementById('voicesModal').classList.add('show');
+  };
+  document.getElementById('closeVoicesModal').onclick = () => {
+    document.getElementById('voicesModal').classList.remove('show');
+  };
+
+  document.getElementById('settingsBtn').onclick = () => {
+    // Load saved settings
+    document.getElementById('elevenLabsApiKey').value = localStorage.getItem('elevenlabs_api_key') || '';
+    document.getElementById('serverUrl').value = localStorage.getItem('library_server_url') || window.location.origin;
+    document.getElementById('settingsModal').classList.add('show');
+  };
+  document.getElementById('closeSettingsModal').onclick = () => {
+    document.getElementById('settingsModal').classList.remove('show');
+  };
+
+  document.getElementById('saveSettingsBtn').onclick = () => {
+    localStorage.setItem('elevenlabs_api_key', document.getElementById('elevenLabsApiKey').value);
+    localStorage.setItem('library_server_url', document.getElementById('serverUrl').value);
+    showToast('Settings saved!');
+    document.getElementById('settingsModal').classList.remove('show');
+  };
+
+  // Bookmarklet Modal
+  document.getElementById('bookmarkletBtn').onclick = () => {
+    const serverUrl = localStorage.getItem('library_server_url') || window.location.origin;
+    const bookmarkletCode = `javascript:(function(){var t=window.getSelection().toString().trim()||document.body.innerText.substring(0,50000);var title=document.title;var url=window.location.href;fetch('${serverUrl}/library/readings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:title,url:url,text:t,source:'bookmarklet'})}).then(r=>r.json()).then(d=>{if(d.success)alert('Sent to Library!');else alert('Error: '+(d.error||'Failed'));}).catch(e=>alert('Error: '+e.message));})();`;
+
+    document.getElementById('bookmarkletLink').href = bookmarkletCode;
+    document.getElementById('bookmarkletModal').classList.add('show');
+  };
+  document.getElementById('closeBookmarkletModal').onclick = () => {
+    document.getElementById('bookmarkletModal').classList.remove('show');
+  };
+
+  // Extension Modal
+  document.getElementById('extensionBtn').onclick = () => {
+    const serverUrl = localStorage.getItem('library_server_url') || window.location.origin;
+    document.getElementById('extensionServerUrl').textContent = serverUrl;
+    document.getElementById('extensionModal').classList.add('show');
+  };
+  document.getElementById('closeExtensionModal').onclick = () => {
+    document.getElementById('extensionModal').classList.remove('show');
+  };
+
+  // Vision Capture Modal
+  document.getElementById('visionCaptureBtn').onclick = () => {
+    document.getElementById('visionModal').classList.add('show');
+  };
+  document.getElementById('closeVisionModal').onclick = () => {
+    stopCapture();
+    document.getElementById('visionModal').classList.remove('show');
+  };
+
+  document.getElementById('startCaptureBtn').onclick = async () => {
+    try {
+      mediaStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { cursor: 'always' },
+        audio: false
+      });
+
+      videoElement = document.createElement('video');
+      videoElement.srcObject = mediaStream;
+      videoElement.play();
+
+      document.getElementById('startCaptureBtn').disabled = true;
+      document.getElementById('captureFrameBtn').disabled = false;
+      document.getElementById('stopCaptureBtn').disabled = false;
+
+      mediaStream.getVideoTracks()[0].onended = () => {
+        stopCapture();
+      };
+
+      showToast('Screen sharing started');
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  document.getElementById('captureFrameBtn').onclick = async () => {
+    if (!videoElement || !mediaStream) return;
+
+    showToast('Capturing...');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth;
+    canvas.height = videoElement.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0);
+
+    const preview = document.getElementById('capturePreview');
+    preview.src = canvas.toDataURL('image/png');
+    preview.classList.add('show');
+
+    // Send to vision endpoint
+    try {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const formData = new FormData();
+      formData.append('image', blob, 'capture.png');
+
+      const r = await fetch('/library/vision', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await r.json();
+
+      if (data.text) {
+        document.getElementById('capturedText').value = data.text;
+        document.getElementById('capturedTextContainer').style.display = 'block';
+        showToast('Text extracted!');
+      } else {
+        showToast('Error: ' + (data.error || 'No text found'));
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  document.getElementById('stopCaptureBtn').onclick = stopCapture;
+
+  function stopCapture() {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      mediaStream = null;
+    }
+    if (videoElement) {
+      videoElement.srcObject = null;
+      videoElement = null;
+    }
+    document.getElementById('startCaptureBtn').disabled = false;
+    document.getElementById('captureFrameBtn').disabled = true;
+    document.getElementById('stopCaptureBtn').disabled = true;
+  }
+
+  document.getElementById('addCapturedBtn').onclick = async () => {
+    const text = document.getElementById('capturedText').value.trim();
+    if (!text) return;
+
+    const title = prompt('Enter a title for this reading:', 'Screen Capture');
+    if (!title) return;
+
+    try {
+      const r = await fetch('/library/readings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, text, source: 'vision-capture' })
+      });
+
+      if (r.ok) {
+        await loadReadings();
+        showToast('Reading added!');
+        document.getElementById('capturedText').value = '';
+        document.getElementById('capturedTextContainer').style.display = 'none';
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  document.getElementById('appendCapturedBtn').onclick = async () => {
+    if (!currentReadingId) {
+      showToast('Select a reading first');
+      return;
+    }
+
+    const text = document.getElementById('capturedText').value.trim();
+    if (!text) return;
+
+    const reading = readings.find(r => r.id === currentReadingId);
+    if (!reading) return;
+
+    try {
+      const r = await fetch(`/library/readings/${currentReadingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: reading.text + '\n\n' + text })
+      });
+
+      if (r.ok) {
+        await loadReadings();
+        selectReading(currentReadingId);
+        showToast('Text appended!');
+        document.getElementById('capturedText').value = '';
+        document.getElementById('capturedTextContainer').style.display = 'none';
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    }
+  };
+
+  // Close modals on background click
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.classList.remove('show');
+    };
+  });
+
+  // Menu button (mobile)
+  document.getElementById('menuBtn').onclick = () => sidebar.classList.toggle('show');
+
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768 &&
+        sidebar.classList.contains('show') &&
+        !sidebar.contains(e.target) &&
+        e.target.id !== 'menuBtn') {
+      sidebar.classList.remove('show');
+    }
+  });
+
+  // Initialize
+  loadReadings();
+  loadVoices();
+</script>
+</body>
+</html>
