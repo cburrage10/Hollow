@@ -5,97 +5,1563 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
   <title>Rhys</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
+    * { box-sizing: border-box; }
     body {
-      font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
       height: 100vh;
       height: 100dvh;
-      overflow: hidden;
+      display: flex;
+      background: #0d1b2a;
+      color: #e8f4f8;
     }
 
-    .background {
+    .bg-layer {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: url('./bg.jpg') center center / cover no-repeat;
       z-index: -2;
     }
-
-    .overlay {
+    .bg-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(30, 0, 50, 0.7);
+      background: rgba(13, 27, 42, 0.75);
       z-index: -1;
     }
 
-    .container {
-      height: 100%;
+    /* Sidebar */
+    #sidebar {
+      width: 280px;
+      background: rgba(13, 27, 42, 0.95);
+      border-right: 1px solid rgba(77, 208, 225, 0.2);
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      flex-shrink: 0;
+      backdrop-filter: blur(10px);
+    }
+
+    .sidebar-header {
+      padding: 12px;
+      border-bottom: 1px solid rgba(77, 208, 225, 0.2);
+    }
+
+    .sidebar-header-row {
+      display: flex;
       align-items: center;
-      padding: 20px;
-      text-align: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
     }
 
-    .icon {
-      font-size: 4rem;
-      margin-bottom: 20px;
+    .sidebar-header h2 { margin: 0; font-size: 1rem; color: #4dd0e1; }
+
+    #newChatBtn {
+      padding: 6px 10px;
+      background: rgba(77, 208, 225, 0.8);
+      color: #0d1b2a;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    #newChatBtn:hover { background: #4dd0e1; }
+
+    #searchInput {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #e8f4f8;
+    }
+    #searchInput::placeholder { color: #7a9bb3; }
+
+    #sessionList {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
     }
 
-    h1 {
-      font-size: 3rem;
-      color: #9370db;
-      text-shadow: 2px 2px 20px rgba(0, 0, 0, 0.8);
-      margin-bottom: 16px;
-      letter-spacing: 4px;
-      font-weight: normal;
-    }
-
-    .subtitle {
-      color: rgba(255, 255, 255, 0.8);
-      font-size: 1.2rem;
-      margin-bottom: 40px;
-      font-style: italic;
-      text-shadow: 1px 1px 10px rgba(0, 0, 0, 0.8);
-    }
-
-    .back-btn {
-      padding: 14px 40px;
-      font-size: 1rem;
-      font-family: inherit;
-      border: 2px solid rgba(147, 112, 219, 0.6);
-      background: rgba(0, 0, 0, 0.4);
-      color: #fff;
+    .session-item {
+      padding: 10px 12px;
       border-radius: 8px;
       cursor: pointer;
-      text-decoration: none;
-      transition: all 0.3s ease;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #c5d3e0;
+    }
+
+    .session-item:hover { background: rgba(77, 208, 225, 0.1); }
+    .session-item.active { background: rgba(77, 208, 225, 0.2); color: #4dd0e1; }
+
+    .session-info { flex: 1; min-width: 0; }
+
+    .session-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+    }
+
+    .session-item:hover .session-actions { opacity: 1; }
+
+    .session-action-btn {
+      background: none;
+      border: none;
+      color: #7a9bb3;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .session-action-btn:hover { color: #4dd0e1; }
+
+    .session-time {
+      font-size: 11px;
+      color: #5a7a8a;
+      margin-top: 2px;
+    }
+
+    /* Main content */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    header {
+      padding: 10px 16px;
+      background: rgba(13, 27, 42, 0.9);
+      border-bottom: 1px solid rgba(77, 208, 225, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
       backdrop-filter: blur(10px);
-      letter-spacing: 2px;
     }
 
-    .back-btn:hover {
-      background: rgba(147, 112, 219, 0.2);
-      border-color: #9370db;
-      transform: translateY(-2px);
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    #menuBtn {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 4px;
+      color: #e8f4f8;
     }
 
-    @media (max-width: 600px) {
-      h1 { font-size: 2rem; }
-      .subtitle { font-size: 1rem; }
+    .home-btn {
+      font-size: 20px;
+      text-decoration: none;
+      padding: 4px;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .home-btn:hover { opacity: 1; }
+
+    h1 { margin: 0; font-size: 1.1rem; color: #4dd0e1; }
+
+    #status {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #7a9bb3;
+    }
+    #status.connected { background: rgba(77, 208, 225, 0.2); color: #4dd0e1; }
+
+    .header-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      color: #e8f4f8;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .header-btn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
+    .header-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    #memoryCount, #fileCount {
+      font-size: 11px;
+      color: #4dd0e1;
+      padding: 4px 8px;
+      background: rgba(77, 208, 225, 0.15);
+      border-radius: 12px;
+    }
+
+    .project-file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      background: rgba(77, 208, 225, 0.1);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .project-file-item .file-info { flex: 1; min-width: 0; }
+    .project-file-item .file-name {
+      font-size: 14px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #e8f4f8;
+    }
+    .project-file-item .file-meta {
+      font-size: 11px;
+      color: #7a9bb3;
+      margin-top: 2px;
+    }
+    .project-file-item .delete-file {
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+
+    #chatContainer {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      line-height: 1.5;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: rgba(77, 208, 225, 0.9);
+      color: #0d1b2a;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.rhys {
+      align-self: flex-start;
+      background: rgba(30, 58, 95, 0.9);
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      border-bottom-left-radius: 4px;
+      color: #e8f4f8;
+    }
+
+    .message-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      gap: 8px;
+    }
+
+    .message .timestamp {
+      font-size: 10px;
+      opacity: 0.7;
+    }
+
+    .message.user .message-footer { flex-direction: row-reverse; }
+
+    .copy-btn, .download-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0.5;
+      padding: 2px 4px;
+      transition: opacity 0.2s;
+    }
+    .copy-btn:hover, .download-btn:hover { opacity: 1; }
+    .message.user .copy-btn, .message.user .download-btn { color: #0d1b2a; }
+    .message.rhys .copy-btn, .message.rhys .download-btn { color: #7a9bb3; }
+
+    .image-container {
+      position: relative;
+      display: inline-block;
+      margin-top: 8px;
+    }
+    .image-container img {
+      max-width: 100%;
+      border-radius: 8px;
+      cursor: pointer;
+      display: block;
+    }
+    .image-download {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(77, 208, 225, 0.9);
+      color: #0d1b2a;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .image-container:hover .image-download { opacity: 1; }
+
+    .message.rhys .content { color: #e8f4f8; }
+    .message.rhys .content p { margin: 0 0 8px 0; }
+    .message.rhys .content p:last-child { margin-bottom: 0; }
+    .message.rhys .content ul, .message.rhys .content ol { margin: 8px 0; padding-left: 20px; }
+    .message.rhys .content code { background: rgba(77, 208, 225, 0.15); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: #4dd0e1; }
+    .message.rhys .content pre { background: rgba(0, 0, 0, 0.3); padding: 12px; border-radius: 8px; overflow-x: auto; }
+    .message.rhys .content strong { font-weight: 600; color: #4dd0e1; }
+
+    #typingIndicator {
+      align-self: flex-start;
+      padding: 12px 16px;
+      background: rgba(30, 58, 95, 0.9);
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      border-radius: 16px;
+      display: none;
+    }
+
+    #typingIndicator.show { display: block; }
+
+    .typing-dots { display: flex; gap: 4px; }
+
+    .typing-dots span {
+      width: 8px;
+      height: 8px;
+      background: #4dd0e1;
+      border-radius: 50%;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    #inputArea {
+      padding: 12px 16px;
+      background: rgba(13, 27, 42, 0.9);
+      border-top: 1px solid rgba(77, 208, 225, 0.2);
+      backdrop-filter: blur(10px);
+    }
+
+    #inputRow {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    #msg {
+      flex: 1;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      border-radius: 24px;
+      resize: none;
+      min-height: 48px;
+      max-height: 120px;
+      font-family: inherit;
+      background: rgba(0, 0, 0, 0.3);
+      color: #e8f4f8;
+    }
+    #msg::placeholder { color: #7a9bb3; }
+
+    #msg:focus { outline: none; border-color: #4dd0e1; }
+
+    .input-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    #send { background: rgba(77, 208, 225, 0.9); color: #0d1b2a; }
+    #send:hover { background: #4dd0e1; }
+    #send:disabled { background: rgba(77, 208, 225, 0.3); cursor: not-allowed; }
+
+    .upload-btn { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(77, 208, 225, 0.3); color: #e8f4f8; }
+    .upload-btn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
+
+    #voiceBtn { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(77, 208, 225, 0.3); color: #e8f4f8; }
+    #voiceBtn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
+    #voiceBtn.recording { background: #ff4444; color: white; border-color: #ff4444; }
+
+    #fileInput { display: none; }
+
+    #filePreview {
+      display: none;
+      padding: 8px 12px;
+      background: rgba(77, 208, 225, 0.1);
+      border-bottom: 1px solid rgba(77, 208, 225, 0.2);
+      align-items: center;
+      gap: 10px;
+    }
+    #filePreview.show { display: flex; }
+    #filePreview img {
+      max-height: 60px;
+      max-width: 80px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+    #filePreview .file-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(77, 208, 225, 0.2);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    #filePreview .file-name {
+      flex: 1;
+      font-size: 13px;
+      color: #e8f4f8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #filePreview .remove-file {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #7a9bb3;
+      padding: 4px;
+    }
+    #filePreview .remove-file:hover { color: #4dd0e1; }
+
+    footer {
+      padding: 8px 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #4dd0e1;
+      background: rgba(13, 27, 42, 0.9);
+      border-top: 1px solid rgba(77, 208, 225, 0.2);
+    }
+
+    /* Modals */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show { display: flex; }
+
+    .modal-content {
+      background: rgba(30, 58, 95, 0.98);
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 90%;
+      max-height: 80%;
+      overflow-y: auto;
+      min-width: 320px;
+      color: #e8f4f8;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-header h2 { margin: 0; font-size: 1.1rem; color: #4dd0e1; }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #7a9bb3;
+    }
+    .close-btn:hover { color: #4dd0e1; }
+
+    .memory-item, .search-result {
+      padding: 10px 12px;
+      background: rgba(77, 208, 225, 0.1);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .memory-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .memory-item .text { flex: 1; font-size: 14px; color: #e8f4f8; }
+    .memory-item .id { font-size: 12px; color: #4dd0e1; }
+
+    .delete-memory {
+      background: #ff4444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .search-result {
+      cursor: pointer;
+    }
+    .search-result:hover { background: rgba(77, 208, 225, 0.2); }
+
+    .search-result-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .search-result-session {
+      font-size: 12px;
+      color: #4dd0e1;
+      font-weight: 500;
+    }
+
+    .search-result-time {
+      font-size: 11px;
+      color: #7a9bb3;
+    }
+
+    .search-result-content {
+      font-size: 14px;
+      color: #e8f4f8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .search-result-role {
+      font-size: 11px;
+      color: #7a9bb3;
+      text-transform: capitalize;
+    }
+
+    .no-results { color: #7a9bb3; font-style: italic; text-align: center; padding: 20px; }
+
+    .export-format-btn {
+      padding: 12px 16px;
+      font-size: 14px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      color: #e8f4f8;
+    }
+    .export-format-btn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(77, 208, 225, 0.9);
+      color: #0d1b2a;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 200;
+      font-weight: 500;
+    }
+
+    #toast.show { opacity: 1; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        left: 0; top: 0; bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.2s;
+      }
+      #sidebar.show { transform: translateX(0); }
+      #menuBtn { display: block; }
+      .message { max-width: 90%; }
     }
   </style>
 </head>
 <body>
-  <div class="background"></div>
-  <div class="overlay"></div>
+  <div class="bg-layer"></div>
+  <div class="bg-overlay"></div>
 
-  <div class="container">
-    <div class="icon">🌙</div>
-    <h1>RHYS</h1>
-    <p class="subtitle">Coming soon...</p>
-    <a href="/" class="back-btn">Return to Cathedral</a>
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-header-row">
+        <h2>Chats</h2>
+        <button id="newChatBtn">+ New</button>
+      </div>
+      <input type="text" id="searchInput" placeholder="Search all chats...">
+    </div>
+    <div id="sessionList"></div>
   </div>
+
+  <!-- Main -->
+  <div id="main">
+    <header>
+      <div class="header-left">
+        <a href="/" class="home-btn" title="Back to Cathedral">🏛️</a>
+        <button id="menuBtn">☰</button>
+        <h1>Rhys</h1>
+        <div id="status">Disconnected</div>
+      </div>
+      <div class="header-right">
+        <span id="memoryCount">0 memories</span>
+        <span id="fileCount">0 files</span>
+        <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
+        <button class="header-btn" id="exportBtn" title="Export this chat">Export</button>
+        <button class="header-btn" id="filesBtn">Files</button>
+        <button class="header-btn" id="memoryBtn">Memories</button>
+        <button class="header-btn" id="clearBtn">Clear</button>
+        <button class="header-btn" id="btnConnect">Voice</button>
+        <button class="header-btn" id="btnDisconnect" disabled>End</button>
+      </div>
+    </header>
+
+    <div id="chatContainer">
+      <div id="typingIndicator">
+        <div class="typing-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="inputArea">
+      <div id="filePreview">
+        <div id="filePreviewContent"></div>
+        <span class="file-name" id="fileName"></span>
+        <button class="remove-file" id="removeFile" title="Remove file">×</button>
+      </div>
+      <div id="inputRow">
+        <button class="input-btn upload-btn" id="uploadBtn" title="Upload file or image">+</button>
+        <textarea id="msg" placeholder="Message Rhys..." rows="1"></textarea>
+        <button class="input-btn" id="voiceBtn" title="Voice input">🎤</button>
+        <button class="input-btn" id="send" title="Send">➤</button>
+      </div>
+      <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv,.jpg,.jpeg,.png,.gif,.webp">
+    </div>
+
+    <footer>Still with you 🌙</footer>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Memory Modal -->
+  <div class="modal" id="memoryModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Rhys's Memories</h2>
+        <button class="close-btn" id="closeMemoryModal">&times;</button>
+      </div>
+      <div id="memoryList"></div>
+      <div style="margin-top: 16px;">
+        <input type="text" id="newMemory" placeholder="Add a new memory..." style="width: 100%; padding: 10px; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 8px; background: rgba(0,0,0,0.3); color: #e8f4f8;">
+        <button id="addMemoryBtn" style="margin-top: 8px; padding: 8px 16px; background: #4dd0e1; color: #0d1b2a; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">Save Memory</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Modal -->
+  <div class="modal" id="searchModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Search Results</h2>
+        <button class="close-btn" id="closeSearchModal">&times;</button>
+      </div>
+      <div id="searchResults"></div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal" id="exportModal">
+    <div class="modal-content" style="min-width: 280px;">
+      <div class="modal-header">
+        <h2>Export Chat</h2>
+        <button class="close-btn" id="closeExportModal">&times;</button>
+      </div>
+      <p style="color: #7a9bb3; font-size: 14px; margin-bottom: 16px;">Choose export format:</p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="export-format-btn" id="exportTxt">📄 Text (.txt)</button>
+        <button class="export-format-btn" id="exportMd">📝 Markdown (.md)</button>
+        <button class="export-format-btn" id="exportJson">📋 JSON (.json)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Files Modal -->
+  <div class="modal" id="filesModal">
+    <div class="modal-content" style="width: 500px;">
+      <div class="modal-header">
+        <h2>Project Files</h2>
+        <button class="close-btn" id="closeFilesModal">&times;</button>
+      </div>
+      <p style="color: #7a9bb3; font-size: 13px; margin-bottom: 12px;">Upload documents that Rhys can reference in any conversation. Supports .txt, .md, .pdf, .csv, .json files.</p>
+      <div id="projectFilesList"></div>
+      <div style="margin-top: 16px; display: flex; gap: 8px;">
+        <input type="file" id="projectFileInput" accept=".txt,.md,.pdf,.csv,.json,.js,.ts,.py,.html,.css" style="display: none;">
+        <button id="uploadProjectFileBtn" style="flex: 1; padding: 10px 16px; background: #4dd0e1; color: #0d1b2a; border: none; border-radius: 6px; cursor: pointer; font-weight: 500;">+ Upload File</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Rhys-specific API prefix
+  const API_PREFIX = '/rhys';
+
+  // Check for session in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlSessionId = urlParams.get('s');
+
+  // State
+  let currentSessionId = urlSessionId || localStorage.getItem('rhys_session') || null;
+  let sessions = [];
+
+  const chatContainer = document.getElementById("chatContainer");
+  const msgInput = document.getElementById("msg");
+  const typingIndicator = document.getElementById("typingIndicator");
+  const sendBtn = document.getElementById("send");
+  const sidebar = document.getElementById("sidebar");
+
+  // If we got session from URL, save it
+  if (urlSessionId) {
+    localStorage.setItem('rhys_session', urlSessionId);
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+
+  // Toast notification
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // Simple markdown parser
+  function parseMarkdown(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      .replace(/^(.+)$/gm, (m) => m.startsWith('<') ? m : `<p>${m}</p>`)
+      .replace(/<p><\/p>/g, '');
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function formatDate(ts) {
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) {
+      return formatTime(d);
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  // Copy text to clipboard
+  function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard');
+    }).catch(() => {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Copied to clipboard');
+    });
+  }
+
+  // Download image
+  async function downloadImage(url, filename = 'rhys-image.png') {
+    try {
+      showToast('Downloading...');
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      showToast('Image saved!');
+    } catch (e) {
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+      showToast('Opening image in new tab');
+    }
+  }
+
+  // Create image with download button
+  function createImageElement(imageUrl) {
+    const container = document.createElement("div");
+    container.className = "image-container";
+
+    const img = document.createElement("img");
+    img.src = imageUrl;
+    img.onclick = () => window.open(imageUrl, '_blank');
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.className = "image-download";
+    downloadBtn.textContent = "⬇ Save";
+    downloadBtn.onclick = (e) => {
+      e.stopPropagation();
+      const timestamp = new Date().toISOString().slice(0,10);
+      downloadImage(imageUrl, `rhys-${timestamp}.png`);
+    };
+
+    container.appendChild(img);
+    container.appendChild(downloadBtn);
+    return container;
+  }
+
+  // Expose globally for client.js voice transcription
+  window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
+    const msg = document.createElement("div");
+    msg.className = `message ${isUser ? 'user' : 'rhys'}`;
+
+    const content = document.createElement("div");
+    content.className = "content";
+
+    if (isUser) {
+      content.textContent = text;
+    } else {
+      content.innerHTML = parseMarkdown(text);
+    }
+
+    if (imageUrl) {
+      content.appendChild(createImageElement(imageUrl));
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+
+    const timestamp = document.createElement("span");
+    timestamp.className = "timestamp";
+    timestamp.textContent = formatTime(new Date());
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+    copyBtn.onclick = () => copyToClipboard(text);
+
+    footer.appendChild(timestamp);
+    footer.appendChild(copyBtn);
+
+    msg.appendChild(content);
+    msg.appendChild(footer);
+
+    chatContainer.insertBefore(msg, typingIndicator);
+
+    if (!skipScroll) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }
+
+  function clearChat() {
+    const messages = chatContainer.querySelectorAll('.message');
+    messages.forEach(m => m.remove());
+  }
+
+  function showTyping(show) {
+    typingIndicator.className = show ? 'show' : '';
+    if (show) chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  // Session management
+  async function loadSessions() {
+    const r = await fetch(`${API_PREFIX}/sessions`);
+    const data = await r.json();
+    sessions = data.sessions || [];
+    renderSessions();
+
+    if (sessions.length === 0 || (currentSessionId && !sessions.find(s => s.id === currentSessionId))) {
+      await createNewSession();
+    } else if (!currentSessionId) {
+      switchSession(sessions[0].id);
+    } else {
+      await loadChatHistory();
+    }
+  }
+
+  function renderSessions() {
+    const list = document.getElementById('sessionList');
+    list.innerHTML = sessions.map(s => `
+      <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" data-id="${s.id}">
+        <div class="session-info">
+          <div class="session-name">${s.name}</div>
+          <div class="session-time">${formatDate(s.updatedAt)}</div>
+        </div>
+        <div class="session-actions">
+          <button class="session-action-btn session-share" data-id="${s.id}" title="Share">🔗</button>
+          <button class="session-action-btn session-delete" data-id="${s.id}" title="Delete">×</button>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.session-item').forEach(el => {
+      el.onclick = (e) => {
+        if (!e.target.classList.contains('session-action-btn')) {
+          switchSession(el.dataset.id);
+        }
+      };
+    });
+
+    list.querySelectorAll('.session-share').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        shareSession(btn.dataset.id);
+      };
+    });
+
+    list.querySelectorAll('.session-delete').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm('Delete this chat?')) {
+          await fetch(`${API_PREFIX}/sessions/${btn.dataset.id}`, { method: 'DELETE' });
+          if (btn.dataset.id === currentSessionId) {
+            currentSessionId = null;
+            localStorage.removeItem('rhys_session');
+          }
+          await loadSessions();
+        }
+      };
+    });
+  }
+
+  function shareSession(id) {
+    const url = `${window.location.origin}/rhys?s=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      showToast('Link copied! Open on any device to sync.');
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  }
+
+  async function createNewSession() {
+    const r = await fetch(`${API_PREFIX}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await r.json();
+    sessions = data.sessions;
+    currentSessionId = data.id;
+    localStorage.setItem('rhys_session', currentSessionId);
+    renderSessions();
+    clearChat();
+  }
+
+  async function switchSession(id) {
+    currentSessionId = id;
+    localStorage.setItem('rhys_session', id);
+    renderSessions();
+    await loadChatHistory();
+    sidebar.classList.remove('show');
+  }
+
+  async function loadChatHistory() {
+    if (!currentSessionId) return;
+    clearChat();
+
+    try {
+      const r = await fetch(`${API_PREFIX}/sessions/${currentSessionId}/history`);
+      const data = await r.json();
+
+      for (const entry of data.history || []) {
+        const msg = typeof entry === 'string' ? JSON.parse(entry) : entry;
+        addMessageFromHistory(msg.content, msg.role === 'user', msg.timestamp, msg.image);
+      }
+
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
+  }
+
+  function addMessageFromHistory(text, isUser, timestamp, imageUrl = null) {
+    const msg = document.createElement("div");
+    msg.className = `message ${isUser ? 'user' : 'rhys'}`;
+
+    const content = document.createElement("div");
+    content.className = "content";
+
+    if (isUser) {
+      content.textContent = text;
+    } else {
+      content.innerHTML = parseMarkdown(text);
+    }
+
+    if (imageUrl) {
+      content.appendChild(createImageElement(imageUrl));
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+
+    const ts = document.createElement("span");
+    ts.className = "timestamp";
+    ts.textContent = formatTime(new Date(timestamp));
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+    copyBtn.onclick = () => copyToClipboard(text);
+
+    footer.appendChild(ts);
+    footer.appendChild(copyBtn);
+
+    msg.appendChild(content);
+    msg.appendChild(footer);
+
+    chatContainer.insertBefore(msg, typingIndicator);
+  }
+
+  // Auto-resize textarea
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 120) + 'px';
+  });
+
+  // Staged file for upload
+  let stagedFile = null;
+  const filePreview = document.getElementById('filePreview');
+  const filePreviewContent = document.getElementById('filePreviewContent');
+  const fileNameEl = document.getElementById('fileName');
+
+  function clearStagedFile() {
+    stagedFile = null;
+    filePreview.classList.remove('show');
+    filePreviewContent.innerHTML = '';
+    fileNameEl.textContent = '';
+    document.getElementById('fileInput').value = '';
+  }
+
+  document.getElementById('removeFile').onclick = clearStagedFile;
+
+  // Send message (handles both text and file+text)
+  sendBtn.onclick = async () => {
+    const text = msgInput.value.trim();
+    if ((!text && !stagedFile) || !currentSessionId) return;
+
+    msgInput.value = "";
+    msgInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    showTyping(true);
+
+    try {
+      let data;
+
+      if (stagedFile) {
+        // Send with file
+        const displayMsg = text ? `[${stagedFile.name}] ${text}` : `[${stagedFile.name}]`;
+        addMessage(displayMsg, true);
+
+        const formData = new FormData();
+        formData.append("file", stagedFile);
+        formData.append("message", text);
+        formData.append("sessionId", currentSessionId);
+
+        const r = await fetch(`${API_PREFIX}/upload`, { method: "POST", body: formData });
+        data = await r.json();
+        clearStagedFile();
+      } else {
+        // Text only
+        addMessage(text, true);
+
+        const r = await fetch(`${API_PREFIX}/chat`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ text, sessionId: currentSessionId })
+        });
+        data = await r.json();
+      }
+
+      showTyping(false);
+      addMessage(data.text || data.error || "(no reply)", false, false, data.image);
+      updateMemoryCount();
+    } catch (err) {
+      showTyping(false);
+      addMessage("Error: " + err.message, false);
+    }
+
+    sendBtn.disabled = false;
+  };
+
+  // Enter to send
+  msgInput.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  };
+
+  // Share button
+  document.getElementById('shareBtn').onclick = () => {
+    if (currentSessionId) shareSession(currentSessionId);
+  };
+
+  // New chat
+  document.getElementById('newChatBtn').onclick = createNewSession;
+
+  // Menu button (mobile)
+  document.getElementById('menuBtn').onclick = () => sidebar.classList.toggle('show');
+
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768 &&
+        sidebar.classList.contains('show') &&
+        !sidebar.contains(e.target) &&
+        e.target.id !== 'menuBtn') {
+      sidebar.classList.remove('show');
+    }
+  });
+
+  // Upload - stage file for preview
+  document.getElementById("uploadBtn").onclick = () => document.getElementById("fileInput").click();
+
+  document.getElementById("fileInput").onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    stagedFile = file;
+    fileNameEl.textContent = file.name;
+
+    // Show preview
+    filePreviewContent.innerHTML = '';
+    if (file.type.startsWith('image/')) {
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(file);
+      filePreviewContent.appendChild(img);
+    } else {
+      const icon = document.createElement('div');
+      icon.className = 'file-icon';
+      icon.textContent = '📄';
+      filePreviewContent.appendChild(icon);
+    }
+
+    filePreview.classList.add('show');
+    msgInput.focus();
+  };
+
+  // Voice input
+  const voiceBtn = document.getElementById("voiceBtn");
+  let recognition = null;
+
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (e) => {
+      msgInput.value += e.results[0][0].transcript;
+      msgInput.dispatchEvent(new Event('input'));
+    };
+
+    recognition.onend = () => voiceBtn.classList.remove('recording');
+    recognition.onerror = () => voiceBtn.classList.remove('recording');
+
+    voiceBtn.onclick = () => {
+      if (voiceBtn.classList.contains('recording')) {
+        recognition.stop();
+      } else {
+        recognition.start();
+        voiceBtn.classList.add('recording');
+      }
+    };
+  } else {
+    voiceBtn.style.display = 'none';
+  }
+
+  // Clear chat
+  document.getElementById("clearBtn").onclick = async () => {
+    if (!currentSessionId || !confirm("Clear this chat's history?")) return;
+    await fetch(`${API_PREFIX}/sessions/${currentSessionId}/history`, { method: 'DELETE' });
+    clearChat();
+  };
+
+  // Search
+  const searchInput = document.getElementById('searchInput');
+  const searchModal = document.getElementById('searchModal');
+  let searchTimeout = null;
+
+  searchInput.oninput = () => {
+    clearTimeout(searchTimeout);
+    const q = searchInput.value.trim();
+    if (q.length < 2) return;
+
+    searchTimeout = setTimeout(async () => {
+      const r = await fetch(`${API_PREFIX}/search?q=${encodeURIComponent(q)}`);
+      const data = await r.json();
+      showSearchResults(data.results, q);
+    }, 300);
+  };
+
+  searchInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(searchTimeout);
+      const q = searchInput.value.trim();
+      if (q.length >= 2) {
+        fetch(`${API_PREFIX}/search?q=${encodeURIComponent(q)}`)
+          .then(r => r.json())
+          .then(data => showSearchResults(data.results, q));
+      }
+    }
+  };
+
+  function showSearchResults(results, query) {
+    const container = document.getElementById('searchResults');
+
+    if (results.length === 0) {
+      container.innerHTML = '<p class="no-results">No results found</p>';
+    } else {
+      container.innerHTML = results.map(r => `
+        <div class="search-result" data-session="${r.sessionId}">
+          <div class="search-result-header">
+            <span class="search-result-session">${r.sessionName}</span>
+            <span class="search-result-time">${formatDate(r.timestamp)}</span>
+          </div>
+          <div class="search-result-role">${r.role}</div>
+          <div class="search-result-content">${highlightQuery(r.content, query)}</div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.search-result').forEach(el => {
+        el.onclick = () => {
+          searchModal.classList.remove('show');
+          searchInput.value = '';
+          switchSession(el.dataset.session);
+        };
+      });
+    }
+
+    searchModal.classList.add('show');
+  }
+
+  function highlightQuery(text, query) {
+    const maxLen = 150;
+    const lowerText = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const idx = lowerText.indexOf(lowerQuery);
+
+    let start = Math.max(0, idx - 40);
+    let end = Math.min(text.length, idx + query.length + 80);
+
+    let snippet = text.substring(start, end);
+    if (start > 0) snippet = '...' + snippet;
+    if (end < text.length) snippet = snippet + '...';
+
+    return snippet.replace(new RegExp(`(${query})`, 'gi'), '<mark>$1</mark>');
+  }
+
+  document.getElementById('closeSearchModal').onclick = () => searchModal.classList.remove('show');
+  searchModal.onclick = (e) => { if (e.target === searchModal) searchModal.classList.remove('show'); };
+
+  // Export modal
+  const exportModal = document.getElementById("exportModal");
+
+  document.getElementById("exportBtn").onclick = () => {
+    if (currentSessionId) exportModal.classList.add('show');
+  };
+
+  document.getElementById("closeExportModal").onclick = () => exportModal.classList.remove('show');
+  exportModal.onclick = (e) => { if (e.target === exportModal) exportModal.classList.remove('show'); };
+
+  async function getExportData() {
+    const r = await fetch(`${API_PREFIX}/sessions/${currentSessionId}/history`);
+    const data = await r.json();
+    const session = sessions.find(s => s.id === currentSessionId);
+    return { history: data.history || [], sessionName: session?.name || 'Chat' };
+  }
+
+  function downloadFile(content, filename, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("exportTxt").onclick = async () => {
+    const { history, sessionName } = await getExportData();
+    let content = `Chat Export: ${sessionName}\nExported: ${new Date().toLocaleString()}\n${'='.repeat(50)}\n\n`;
+
+    for (const entry of history) {
+      const msg = typeof entry === 'string' ? JSON.parse(entry) : entry;
+      const time = new Date(msg.timestamp).toLocaleString();
+      const role = msg.role === 'user' ? 'You' : 'Rhys';
+      content += `[${time}] ${role}:\n${msg.content}\n\n`;
+    }
+
+    downloadFile(content, `${sessionName.replace(/[^a-z0-9]/gi, '_')}.txt`, 'text/plain');
+    exportModal.classList.remove('show');
+    showToast('Chat exported!');
+  };
+
+  document.getElementById("exportMd").onclick = async () => {
+    const { history, sessionName } = await getExportData();
+    let content = `# ${sessionName}\n\n*Exported: ${new Date().toLocaleString()}*\n\n---\n\n`;
+
+    for (const entry of history) {
+      const msg = typeof entry === 'string' ? JSON.parse(entry) : entry;
+      const time = new Date(msg.timestamp).toLocaleString();
+      const role = msg.role === 'user' ? '**You**' : '**Rhys**';
+      content += `### ${role} *${time}*\n\n${msg.content}\n\n`;
+    }
+
+    downloadFile(content, `${sessionName.replace(/[^a-z0-9]/gi, '_')}.md`, 'text/markdown');
+    exportModal.classList.remove('show');
+    showToast('Chat exported!');
+  };
+
+  document.getElementById("exportJson").onclick = async () => {
+    const { history, sessionName } = await getExportData();
+    const exportData = {
+      name: sessionName,
+      exportedAt: new Date().toISOString(),
+      messages: history.map(entry => {
+        const msg = typeof entry === 'string' ? JSON.parse(entry) : entry;
+        return {
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          image: msg.image || null
+        };
+      })
+    };
+
+    downloadFile(JSON.stringify(exportData, null, 2), `${sessionName.replace(/[^a-z0-9]/gi, '_')}.json`, 'application/json');
+    exportModal.classList.remove('show');
+    showToast('Chat exported!');
+  };
+
+  // Memory modal
+  const memoryModal = document.getElementById("memoryModal");
+
+  document.getElementById("memoryBtn").onclick = async () => {
+    await loadMemories();
+    memoryModal.classList.add('show');
+  };
+
+  document.getElementById("closeMemoryModal").onclick = () => memoryModal.classList.remove('show');
+  memoryModal.onclick = (e) => { if (e.target === memoryModal) memoryModal.classList.remove('show'); };
+
+  async function loadMemories() {
+    const r = await fetch(`${API_PREFIX}/chat`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text: "/memories", sessionId: currentSessionId })
+    });
+    const data = await r.json();
+
+    const list = document.getElementById("memoryList");
+    const lines = data.text.split('\n').filter(l => l.startsWith('['));
+
+    if (lines.length === 0) {
+      list.innerHTML = '<p class="no-results">No memories saved yet.</p>';
+    } else {
+      list.innerHTML = lines.map(line => {
+        const match = line.match(/\[(\d+)\] (.+)/);
+        if (match) {
+          return `<div class="memory-item">
+            <span class="id">#${match[1]}</span>
+            <span class="text">${match[2]}</span>
+            <button class="delete-memory" data-id="${match[1]}">Delete</button>
+          </div>`;
+        }
+        return '';
+      }).join('');
+
+      list.querySelectorAll('.delete-memory').forEach(btn => {
+        btn.onclick = async () => {
+          await fetch(`${API_PREFIX}/chat`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ text: `/forget ${btn.dataset.id}`, sessionId: currentSessionId })
+          });
+          await loadMemories();
+          updateMemoryCount();
+        };
+      });
+    }
+  }
+
+  document.getElementById("addMemoryBtn").onclick = async () => {
+    const input = document.getElementById("newMemory");
+    const text = input.value.trim();
+    if (!text || !currentSessionId) return;
+
+    await fetch(`${API_PREFIX}/chat`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ text: `/save ${text}`, sessionId: currentSessionId })
+    });
+
+    input.value = "";
+    await loadMemories();
+    updateMemoryCount();
+  };
+
+  async function updateMemoryCount() {
+    try {
+      const r = await fetch(`${API_PREFIX}/memory-count`);
+      const data = await r.json();
+      document.getElementById("memoryCount").textContent = `${data.count} ${data.count === 1 ? 'memory' : 'memories'}`;
+    } catch (e) {}
+  }
+
+  // Project Files modal
+  const filesModal = document.getElementById("filesModal");
+
+  document.getElementById("filesBtn").onclick = async () => {
+    await loadProjectFiles();
+    filesModal.classList.add('show');
+  };
+
+  document.getElementById("closeFilesModal").onclick = () => filesModal.classList.remove('show');
+  filesModal.onclick = (e) => { if (e.target === filesModal) filesModal.classList.remove('show'); };
+
+  async function loadProjectFiles() {
+    const r = await fetch(`${API_PREFIX}/project-files`);
+    const data = await r.json();
+
+    const list = document.getElementById("projectFilesList");
+
+    if (!data.files || data.files.length === 0) {
+      list.innerHTML = '<p class="no-results">No project files uploaded yet.</p>';
+    } else {
+      list.innerHTML = data.files.map(f => {
+        const size = f.size > 1024 ? `${Math.round(f.size / 1024)}KB` : `${f.size}B`;
+        const date = new Date(f.uploadedAt).toLocaleDateString();
+        return `<div class="project-file-item">
+          <div class="file-info">
+            <div class="file-name">📄 ${f.name}</div>
+            <div class="file-meta">${size} • ${date}</div>
+          </div>
+          <button class="delete-file" data-id="${f.id}">Delete</button>
+        </div>`;
+      }).join('');
+
+      list.querySelectorAll('.delete-file').forEach(btn => {
+        btn.onclick = async () => {
+          if (confirm('Delete this file?')) {
+            await fetch(`${API_PREFIX}/project-files/${btn.dataset.id}`, { method: 'DELETE' });
+            await loadProjectFiles();
+            updateFileCount();
+          }
+        };
+      });
+    }
+  }
+
+  document.getElementById("uploadProjectFileBtn").onclick = () => {
+    document.getElementById("projectFileInput").click();
+  };
+
+  document.getElementById("projectFileInput").onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      showToast('Uploading...');
+      const r = await fetch(`${API_PREFIX}/project-files`, { method: "POST", body: formData });
+      const data = await r.json();
+
+      if (data.error) {
+        showToast('Error: ' + data.error);
+      } else {
+        showToast('File uploaded!');
+        await loadProjectFiles();
+        updateFileCount();
+      }
+    } catch (err) {
+      showToast('Upload failed');
+    }
+
+    e.target.value = '';
+  };
+
+  async function updateFileCount() {
+    try {
+      const r = await fetch(`${API_PREFIX}/project-files/count`);
+      const data = await r.json();
+      document.getElementById("fileCount").textContent = `${data.count} ${data.count === 1 ? 'file' : 'files'}`;
+    } catch (e) {}
+  }
+
+  // Voice buttons (placeholder - would need rhys-specific client.js)
+  document.getElementById('btnConnect').onclick = () => {
+    showToast('Voice chat coming soon for Rhys!');
+  };
+  document.getElementById('btnDisconnect').onclick = () => {};
+
+  // Initialize
+  loadSessions();
+  updateMemoryCount();
+  updateFileCount();
+</script>
 </body>
 </html>

@@ -1362,6 +1362,585 @@ app.delete("/library/readings/:id/chat", async (req, res) => {
   res.json({ success: true });
 });
 
+// ==========================================
+// RHYS ENDPOINTS
+// ==========================================
+
+// Rhys Redis Keys
+const RHYS_MEMORIES_KEY = "rhys:memories";
+const RHYS_MEMORY_COUNTER_KEY = "rhys:memory_counter";
+const RHYS_SESSIONS_KEY = "rhys:sessions";
+const RHYS_PROJECT_FILES_KEY = "rhys:project_files";
+
+// Rhys's base instructions
+const rhysInstructions = process.env.RHYS_INSTRUCTIONS || "You are Rhys, a thoughtful and introspective companion. You're calm, analytical, and have a deep appreciation for nuance. You balance warmth with wisdom. Be genuine and insightful.";
+
+// Rhys helper functions
+function getRhysChatKey(sessionId) {
+  return `rhys:chat:${sessionId}`;
+}
+
+async function getRhysChatHistory(sessionId) {
+  try {
+    const key = getRhysChatKey(sessionId);
+    const history = await redis.lrange(key, 0, MAX_HISTORY - 1);
+    return history || [];
+  } catch (e) {
+    console.error("Error getting Rhys chat history:", e);
+    return [];
+  }
+}
+
+async function addToRhysHistory(sessionId, role, content, image = null) {
+  try {
+    const key = getRhysChatKey(sessionId);
+    const entry = JSON.stringify({ role, content, image, timestamp: Date.now() });
+    await redis.lpush(key, entry);
+    await redis.ltrim(key, 0, MAX_HISTORY - 1);
+  } catch (e) {
+    console.error("Error adding to Rhys history:", e);
+  }
+}
+
+async function getRhysSessions() {
+  try {
+    const sessions = await redis.get(RHYS_SESSIONS_KEY);
+    return sessions || [];
+  } catch (e) {
+    console.error("Error getting Rhys sessions:", e);
+    return [];
+  }
+}
+
+async function saveRhysSessions(sessions) {
+  try {
+    await redis.set(RHYS_SESSIONS_KEY, sessions);
+  } catch (e) {
+    console.error("Error saving Rhys sessions:", e);
+  }
+}
+
+async function createRhysSession(name = null) {
+  const id = generateSessionId();
+  const sessions = await getRhysSessions();
+  sessions.unshift({
+    id,
+    name: name || `Chat ${sessions.length + 1}`,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+  await saveRhysSessions(sessions);
+  return id;
+}
+
+async function touchRhysSession(sessionId) {
+  const sessions = await getRhysSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session) {
+    session.updatedAt = Date.now();
+    await saveRhysSessions(sessions);
+  }
+}
+
+async function deleteRhysSession(sessionId) {
+  const sessions = await getRhysSessions();
+  const idx = sessions.findIndex(s => s.id === sessionId);
+  if (idx >= 0) {
+    sessions.splice(idx, 1);
+    await saveRhysSessions(sessions);
+    await redis.del(getRhysChatKey(sessionId));
+    return true;
+  }
+  return false;
+}
+
+async function renameRhysSession(sessionId, name) {
+  const sessions = await getRhysSessions();
+  const session = sessions.find(s => s.id === sessionId);
+  if (session) {
+    session.name = name;
+    await saveRhysSessions(sessions);
+    return true;
+  }
+  return false;
+}
+
+async function getRhysMemories() {
+  try {
+    const memories = await redis.get(RHYS_MEMORIES_KEY);
+    return memories || [];
+  } catch (e) {
+    console.error("Error getting Rhys memories:", e);
+    return [];
+  }
+}
+
+async function addRhysMemory(text) {
+  const memories = await getRhysMemories();
+  let counter = (await redis.get(RHYS_MEMORY_COUNTER_KEY)) || 0;
+  counter = parseInt(counter) + 1;
+  await redis.set(RHYS_MEMORY_COUNTER_KEY, counter);
+
+  memories.push({ id: counter, text, createdAt: Date.now() });
+  await redis.set(RHYS_MEMORIES_KEY, memories);
+  return counter;
+}
+
+async function deleteRhysMemory(id) {
+  const memories = await getRhysMemories();
+  const idx = memories.findIndex(m => String(m.id) === String(id));
+  if (idx >= 0) {
+    memories.splice(idx, 1);
+    await redis.set(RHYS_MEMORIES_KEY, memories);
+    return true;
+  }
+  return false;
+}
+
+function formatRhysMemoriesList(memories) {
+  if (!memories || memories.length === 0) {
+    return "No memories saved yet.";
+  }
+  return memories.map(m => `[${m.id}] ${m.text}`).join("\n");
+}
+
+async function getRhysProjectFiles() {
+  try {
+    const files = await redis.get(RHYS_PROJECT_FILES_KEY);
+    return files || [];
+  } catch (e) {
+    console.error("Error getting Rhys project files:", e);
+    return [];
+  }
+}
+
+async function saveRhysProjectFiles(files) {
+  try {
+    await redis.set(RHYS_PROJECT_FILES_KEY, files);
+  } catch (e) {
+    console.error("Error saving Rhys project files:", e);
+  }
+}
+
+function buildRhysContext(history, memories, projectFiles) {
+  let parts = [];
+
+  if (memories && memories.length > 0) {
+    parts.push("MEMORIES:\n" + memories.map(m => `- ${m.text}`).join("\n"));
+  }
+
+  if (projectFiles && projectFiles.length > 0) {
+    parts.push("PROJECT FILES:\n" + projectFiles.map(f => `[${f.name}]:\n${f.content.substring(0, 2000)}${f.content.length > 2000 ? '...' : ''}`).join("\n\n"));
+  }
+
+  if (history && history.length > 0) {
+    const recentHistory = history.slice(0, 20).reverse();
+    const formatted = recentHistory.map(entry => {
+      const msg = typeof entry === "string" ? JSON.parse(entry) : entry;
+      return `${msg.role === "user" ? "User" : "Rhys"}: ${msg.content}`;
+    }).join("\n");
+    parts.push("RECENT CONVERSATION:\n" + formatted);
+  }
+
+  return parts.join("\n\n");
+}
+
+// Rhys Session Endpoints
+app.get("/rhys/sessions", async (req, res) => {
+  const sessions = await getRhysSessions();
+  res.json({ sessions });
+});
+
+app.post("/rhys/sessions", async (req, res) => {
+  const name = req.body?.name;
+  const id = await createRhysSession(name);
+  const sessions = await getRhysSessions();
+  res.json({ id, sessions });
+});
+
+app.patch("/rhys/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+  const success = await renameRhysSession(id, name);
+  res.json({ success });
+});
+
+app.delete("/rhys/sessions/:id", async (req, res) => {
+  const { id } = req.params;
+  const success = await deleteRhysSession(id);
+  res.json({ success });
+});
+
+app.get("/rhys/sessions/:id/history", async (req, res) => {
+  const { id } = req.params;
+  const history = await getRhysChatHistory(id);
+  res.json({ history: [...history].reverse() });
+});
+
+app.delete("/rhys/sessions/:id/history", async (req, res) => {
+  const { id } = req.params;
+  await redis.del(getRhysChatKey(id));
+  res.json({ success: true });
+});
+
+// Rhys Search
+app.get("/rhys/search", async (req, res) => {
+  const query = (req.query.q || "").toLowerCase().trim();
+  if (!query) {
+    return res.json({ results: [] });
+  }
+
+  try {
+    const sessions = await getRhysSessions();
+    const results = [];
+
+    for (const session of sessions) {
+      const history = await getRhysChatHistory(session.id);
+
+      for (const entry of history) {
+        const msg = typeof entry === "string" ? JSON.parse(entry) : entry;
+        if (msg.content && msg.content.toLowerCase().includes(query)) {
+          results.push({
+            sessionId: session.id,
+            sessionName: session.name,
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            image: msg.image
+          });
+        }
+      }
+    }
+
+    results.sort((a, b) => b.timestamp - a.timestamp);
+    res.json({ results: results.slice(0, 50) });
+  } catch (e) {
+    console.error("Rhys search error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Rhys Memory Count
+app.get("/rhys/memory-count", async (req, res) => {
+  const memories = await getRhysMemories();
+  res.json({ count: memories.length });
+});
+
+// Rhys Project Files
+app.get("/rhys/project-files", async (req, res) => {
+  const files = await getRhysProjectFiles();
+  const fileList = files.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    size: f.size,
+    uploadedAt: f.uploadedAt
+  }));
+  res.json({ files: fileList });
+});
+
+app.post("/rhys/project-files", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const files = await getRhysProjectFiles();
+    let content = "";
+
+    if (req.file.mimetype === "application/pdf") {
+      const data = await pdf(req.file.buffer);
+      content = data.text.substring(0, MAX_FILE_CONTENT);
+    } else {
+      content = req.file.buffer.toString("utf-8").substring(0, MAX_FILE_CONTENT);
+    }
+
+    const newFile = {
+      id: crypto.randomBytes(4).toString("hex"),
+      name: req.file.originalname,
+      type: req.file.mimetype,
+      size: req.file.size,
+      content,
+      uploadedAt: Date.now()
+    };
+
+    files.push(newFile);
+    await saveRhysProjectFiles(files);
+
+    res.json({ success: true, file: { id: newFile.id, name: newFile.name } });
+  } catch (e) {
+    console.error("Rhys file upload error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+app.delete("/rhys/project-files/:id", async (req, res) => {
+  const { id } = req.params;
+  const files = await getRhysProjectFiles();
+  const idx = files.findIndex(f => f.id === id);
+  if (idx >= 0) {
+    files.splice(idx, 1);
+    await saveRhysProjectFiles(files);
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: "File not found" });
+  }
+});
+
+app.get("/rhys/project-files/count", async (req, res) => {
+  const files = await getRhysProjectFiles();
+  res.json({ count: files.length });
+});
+
+// Rhys File Upload with message
+app.post("/rhys/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const sessionId = req.body.sessionId;
+    const message = req.body.message || "";
+
+    if (!sessionId) {
+      return res.status(400).json({ error: "Session ID required" });
+    }
+
+    let content = "";
+    const isImage = req.file.mimetype.startsWith("image/");
+
+    if (isImage) {
+      const base64 = req.file.buffer.toString("base64");
+      content = `[Image: ${req.file.originalname}]`;
+
+      // For Rhys, we'd use Claude's vision capability
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      if (!anthropicKey) {
+        return res.json({ text: "*Rhys cannot process images yet - Claude API key not configured.*" });
+      }
+
+      const [history, memories, projectFiles] = await Promise.all([
+        getRhysChatHistory(sessionId),
+        getRhysMemories(),
+        getRhysProjectFiles(),
+      ]);
+
+      const context = buildRhysContext(history, memories, projectFiles);
+
+      const fullInstructions = `${rhysInstructions}
+
+${context ? "CONTEXT:\n" + context : ""}
+
+The user has shared an image with you. Describe what you see and respond thoughtfully.`;
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          system: fullInstructions,
+          messages: [{
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: req.file.mimetype,
+                  data: base64,
+                },
+              },
+              ...(message ? [{ type: "text", text: message }] : [])
+            ]
+          }]
+        }),
+      });
+
+      const raw = await r.text();
+      if (!r.ok) {
+        console.error("Anthropic vision error:", raw);
+        return res.status(r.status).json({ error: raw });
+      }
+
+      const data = JSON.parse(raw);
+      const response = data.content?.[0]?.text || "(No response)";
+
+      await addToRhysHistory(sessionId, "user", message ? `[${req.file.originalname}] ${message}` : `[${req.file.originalname}]`);
+      await addToRhysHistory(sessionId, "assistant", response);
+      await touchRhysSession(sessionId);
+
+      return res.json({ text: response });
+
+    } else {
+      // Text file processing
+      if (req.file.mimetype === "application/pdf") {
+        const data = await pdf(req.file.buffer);
+        content = data.text;
+      } else {
+        content = req.file.buffer.toString("utf-8");
+      }
+
+      const truncated = content.substring(0, 8000);
+      const prompt = message
+        ? `Here's a file called "${req.file.originalname}":\n\n${truncated}\n\nUser says: ${message}`
+        : `Here's a file called "${req.file.originalname}":\n\n${truncated}`;
+
+      const [history, memories, projectFiles] = await Promise.all([
+        getRhysChatHistory(sessionId),
+        getRhysMemories(),
+        getRhysProjectFiles(),
+      ]);
+
+      const context = buildRhysContext(history, memories, projectFiles);
+
+      const fullInstructions = `${rhysInstructions}
+
+${context ? "CONTEXT:\n" + context : ""}`;
+
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      if (!anthropicKey) {
+        return res.json({ text: "*Rhys is currently unavailable - Claude API key not configured.*" });
+      }
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1024,
+          system: fullInstructions,
+          messages: [{ role: "user", content: prompt }]
+        }),
+      });
+
+      const raw = await r.text();
+      if (!r.ok) {
+        return res.status(r.status).json({ error: raw });
+      }
+
+      const data = JSON.parse(raw);
+      const response = data.content?.[0]?.text || "(No response)";
+
+      await addToRhysHistory(sessionId, "user", message ? `[${req.file.originalname}] ${message}` : `[${req.file.originalname}]`);
+      await addToRhysHistory(sessionId, "assistant", response);
+      await touchRhysSession(sessionId);
+
+      return res.json({ text: response });
+    }
+  } catch (e) {
+    console.error("Rhys upload error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Rhys Chat - uses Anthropic Claude
+app.post("/rhys/chat", async (req, res) => {
+  try {
+    const text = (req.body?.text || "").toString().trim();
+    const sessionId = req.body?.sessionId;
+
+    if (!text) return res.json({ text: "" });
+    if (!sessionId) return res.status(400).json({ error: "Session ID required" });
+
+    // Handle /save command
+    if (text.startsWith("/save ")) {
+      const memoryText = text.slice(6).trim();
+      if (!memoryText) {
+        return res.json({ text: "Usage: /save <text to remember>" });
+      }
+      const id = await addRhysMemory(memoryText);
+      return res.json({ text: `Memory saved with ID [${id}]: "${memoryText}"` });
+    }
+
+    // Handle /forget command
+    if (text.startsWith("/forget ")) {
+      const id = text.slice(8).trim();
+      if (!id) {
+        return res.json({ text: "Usage: /forget <id>" });
+      }
+      const deleted = await deleteRhysMemory(id);
+      if (deleted) {
+        return res.json({ text: `Memory [${id}] has been forgotten.` });
+      } else {
+        return res.json({ text: `No memory found with ID [${id}].` });
+      }
+    }
+
+    // Handle /memories command
+    if (text === "/memories") {
+      const memories = await getRhysMemories();
+      return res.json({ text: formatRhysMemoriesList(memories) });
+    }
+
+    // Regular chat using Anthropic Claude
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) {
+      return res.json({ text: "*Rhys is currently unavailable. His connection to Claude has not been established yet.*" });
+    }
+
+    const [history, memories, projectFiles] = await Promise.all([
+      getRhysChatHistory(sessionId),
+      getRhysMemories(),
+      getRhysProjectFiles(),
+    ]);
+
+    const context = buildRhysContext(history, memories, projectFiles);
+
+    const fullInstructions = `${rhysInstructions}
+
+${context ? "CONTEXT:\n" + context : ""}
+
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are. You also have access to project files - reference them when the user asks about them.
+
+The user can use these commands:
+- /save <text> - Save something to your memory
+- /forget <id> - Remove a memory by ID
+- /memories - List all saved memories`;
+
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: fullInstructions,
+        messages: [{ role: "user", content: text }]
+      }),
+    });
+
+    const raw = await r.text();
+    if (!r.ok) {
+      console.error("Anthropic error:", raw);
+      return res.status(r.status).json({ error: raw });
+    }
+
+    const data = JSON.parse(raw);
+    const response = data.content?.[0]?.text || "(No response)";
+
+    await addToRhysHistory(sessionId, "user", text);
+    await addToRhysHistory(sessionId, "assistant", response);
+    await touchRhysSession(sessionId);
+
+    res.json({ text: response });
+  } catch (e) {
+    console.error("Rhys chat error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
