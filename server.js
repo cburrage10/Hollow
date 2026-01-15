@@ -1130,6 +1130,177 @@ app.post("/library/vision", upload.single("image"), async (req, res) => {
   }
 });
 
+// ==========================================
+// LIBRARY CHAT ENDPOINTS
+// ==========================================
+
+// Get chat key for a reading
+function getLibraryChatKey(readingId) {
+  return `library:chat:${readingId}`;
+}
+
+// Get chat history for a reading
+app.get("/library/readings/:id/chat", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const key = getLibraryChatKey(id);
+    const history = await redis.lrange(key, 0, 99);
+
+    // Parse and reverse to chronological order
+    const parsed = (history || []).map(entry => {
+      try {
+        return typeof entry === "string" ? JSON.parse(entry) : entry;
+      } catch (e) {
+        return entry;
+      }
+    }).reverse();
+
+    res.json({ history: parsed });
+  } catch (e) {
+    console.error("Error getting library chat:", e);
+    res.json({ history: [] });
+  }
+});
+
+// Send chat message for a reading
+app.post("/library/readings/:id/chat", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text, companion } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    // Get the reading for context
+    const readings = await getLibraryReadings();
+    const reading = readings.find(r => r.id === id);
+
+    if (!reading) {
+      return res.status(404).json({ error: "Reading not found" });
+    }
+
+    // Get chat history for context
+    const chatKey = getLibraryChatKey(id);
+    const existingHistory = await redis.lrange(chatKey, 0, 19);
+    const historyContext = (existingHistory || []).reverse().map(entry => {
+      try {
+        const msg = typeof entry === "string" ? JSON.parse(entry) : entry;
+        const role = msg.role === "user" ? "User" : (msg.companion || "Hollow");
+        return `${role}: ${msg.content}`;
+      } catch (e) {
+        return "";
+      }
+    }).filter(s => s).join("\n");
+
+    // Build reading context (excerpt)
+    const readingExcerpt = reading.text.substring(0, 3000);
+
+    // Character instructions
+    const hollowInstructions = `You are Hollow, a warm and grounded companion who loves discussing books and stories. You're thoughtful, kind, and bring personal insight to what you read together. Be conversational and engaged.`;
+
+    const rhysInstructions = `You are Rhys, a mystical and poetic companion with a deep appreciation for literature. You see metaphors and hidden meanings in stories. You're eloquent, slightly mysterious, and love exploring the deeper themes of what you read together.`;
+
+    // Save user message
+    const userEntry = JSON.stringify({
+      role: "user",
+      content: text,
+      timestamp: Date.now()
+    });
+    await redis.lpush(chatKey, userEntry);
+
+    // Determine which companions to respond
+    const companions = companion === "both" ? ["hollow", "rhys"] : [companion || "hollow"];
+    const responses = [];
+
+    for (const comp of companions) {
+      const instructions = comp === "hollow" ? hollowInstructions : rhysInstructions;
+
+      const fullInstructions = `${instructions}
+
+CURRENT READING:
+Title: ${reading.title}
+${reading.url ? `URL: ${reading.url}` : ""}
+
+EXCERPT FROM THE READING:
+---
+${readingExcerpt}
+---
+
+${historyContext ? `RECENT CONVERSATION:\n${historyContext}\n` : ""}
+
+The user wants to discuss what they're reading with you. Respond naturally and conversationally. Reference specific parts of the reading when relevant. Keep responses concise but meaningful.`;
+
+      const r = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4.1-mini",
+          instructions: fullInstructions,
+          input: text,
+        }),
+      });
+
+      const raw = await r.text();
+      if (!r.ok) {
+        console.error("OpenAI error:", raw);
+        continue;
+      }
+
+      const data = JSON.parse(raw);
+      let responseText = "";
+      for (const item of data.output || []) {
+        for (const c of item.content || []) {
+          if (c.type === "output_text" && c.text) responseText += c.text;
+        }
+      }
+
+      if (responseText) {
+        responses.push({
+          companion: comp,
+          text: responseText
+        });
+
+        // Save assistant message
+        const assistantEntry = JSON.stringify({
+          role: "assistant",
+          companion: comp,
+          content: responseText,
+          timestamp: Date.now()
+        });
+        await redis.lpush(chatKey, assistantEntry);
+      }
+    }
+
+    // Trim history to last 100 messages
+    await redis.ltrim(chatKey, 0, 99);
+
+    if (companions.length > 1) {
+      res.json({ responses });
+    } else {
+      res.json({
+        text: responses[0]?.text || "(No response)",
+        companion: responses[0]?.companion || companion
+      });
+    }
+  } catch (e) {
+    console.error("Library chat error:", e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+// Clear chat history for a reading
+app.delete("/library/readings/:id/chat", async (req, res) => {
+  const { id } = req.params;
+  const key = getLibraryChatKey(id);
+  await redis.del(key);
+  res.json({ success: true });
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
