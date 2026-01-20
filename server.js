@@ -1944,7 +1944,13 @@ ${context ? "CONTEXT:\n" + context : ""}
 
 Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are. You also have access to project files - reference them when the user asks about them.
 
-The user can use these commands:
+MEMORY SAVING:
+When you learn something important about the user that you'd want to remember for future conversations (their name, preferences, important life details, things they care about), you can save it to memory by including [SAVE_MEMORY: what to remember] anywhere in your response. This will be automatically saved and hidden from the user. Use this sparingly for genuinely important things. Examples:
+- [SAVE_MEMORY: User's name is Carly]
+- [SAVE_MEMORY: User has two kids, ages 1 and 4]
+- [SAVE_MEMORY: User loves fantasy novels]
+
+The user can also use these commands manually:
 - /save <text> - Save something to your memory
 - /forget <id> - Remove a memory by ID
 - /memories - List all saved memories`;
@@ -1971,7 +1977,20 @@ The user can use these commands:
     }
 
     const data = JSON.parse(raw);
-    const response = data.content?.[0]?.text || "(No response)";
+    let response = data.content?.[0]?.text || "(No response)";
+
+    // Extract and save any memories Rhys wants to remember
+    const memoryPattern = /\[SAVE_MEMORY:\s*(.+?)\]/g;
+    let match;
+    while ((match = memoryPattern.exec(response)) !== null) {
+      const memoryText = match[1].trim();
+      if (memoryText) {
+        await addRhysMemory(memoryText);
+        console.log("Rhys saved memory:", memoryText);
+      }
+    }
+    // Remove memory tags from response shown to user
+    response = response.replace(memoryPattern, '').trim();
 
     await addToRhysHistory(sessionId, "user", text);
     await addToRhysHistory(sessionId, "assistant", response);
