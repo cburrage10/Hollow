@@ -297,7 +297,7 @@
 
     .message.user .message-footer { flex-direction: row-reverse; }
 
-    .copy-btn, .download-btn, .edit-btn {
+    .copy-btn, .download-btn, .edit-btn, .play-btn {
       background: none;
       border: none;
       cursor: pointer;
@@ -306,9 +306,10 @@
       padding: 2px 4px;
       transition: opacity 0.2s;
     }
-    .copy-btn:hover, .download-btn:hover, .edit-btn:hover { opacity: 1; }
+    .copy-btn:hover, .download-btn:hover, .edit-btn:hover, .play-btn:hover { opacity: 1; }
     .message.user .copy-btn, .message.user .download-btn, .message.user .edit-btn { color: #0d1b2a; }
-    .message.rhys .copy-btn, .message.rhys .download-btn { color: #7a9bb3; }
+    .message.rhys .copy-btn, .message.rhys .download-btn, .message.rhys .play-btn { color: #7a9bb3; }
+    .play-btn.playing { opacity: 1; color: #4dd0e1; }
 
     .image-container {
       position: relative;
@@ -839,6 +840,80 @@
     }
   }
 
+  // Play TTS with button state management (for manual play buttons)
+  let activePlayButton = null;
+
+  async function playTTSWithButton(text, button) {
+    // If this button is already playing, stop it
+    if (activePlayButton === button && currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+      button.textContent = "🔊";
+      button.classList.remove('playing');
+      activePlayButton = null;
+      return;
+    }
+
+    // Stop any other playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+    if (activePlayButton) {
+      activePlayButton.textContent = "🔊";
+      activePlayButton.classList.remove('playing');
+    }
+
+    // Get voice (use selected or default to onyx)
+    const voice = voiceSelect.value || 'onyx';
+
+    // Update button state
+    button.textContent = "⏹️";
+    button.classList.add('playing');
+    activePlayButton = button;
+
+    try {
+      const response = await fetch('/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice })
+      });
+
+      if (!response.ok) {
+        console.error('TTS failed:', await response.text());
+        button.textContent = "🔊";
+        button.classList.remove('playing');
+        activePlayButton = null;
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      currentAudio = new Audio(url);
+
+      currentAudio.onended = () => {
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+        button.textContent = "🔊";
+        button.classList.remove('playing');
+        activePlayButton = null;
+      };
+
+      currentAudio.onerror = () => {
+        button.textContent = "🔊";
+        button.classList.remove('playing');
+        activePlayButton = null;
+      };
+
+      currentAudio.play();
+    } catch (e) {
+      console.error('TTS error:', e);
+      button.textContent = "🔊";
+      button.classList.remove('playing');
+      activePlayButton = null;
+    }
+  }
+
   // If we got session from URL, save it
   if (urlSessionId) {
     localStorage.setItem('rhys_session', urlSessionId);
@@ -975,7 +1050,7 @@
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
 
-    // Add edit button for user messages
+    // Add edit button for user messages, play button for Rhys messages
     if (isUser) {
       const editBtn = document.createElement("button");
       editBtn.className = "edit-btn";
@@ -983,6 +1058,13 @@
       editBtn.title = "Edit & resend";
       editBtn.onclick = () => editMessage(msg, text);
       footer.appendChild(editBtn);
+    } else {
+      const playBtn = document.createElement("button");
+      playBtn.className = "play-btn";
+      playBtn.textContent = "🔊";
+      playBtn.title = "Read aloud";
+      playBtn.onclick = () => playTTSWithButton(text, playBtn);
+      footer.appendChild(playBtn);
     }
 
     msg.appendChild(content);
@@ -1187,7 +1269,7 @@
     footer.appendChild(ts);
     footer.appendChild(copyBtn);
 
-    // Add edit button for user messages
+    // Add edit button for user messages, play button for Rhys messages
     if (isUser) {
       const editBtn = document.createElement("button");
       editBtn.className = "edit-btn";
@@ -1195,6 +1277,13 @@
       editBtn.title = "Edit & resend";
       editBtn.onclick = () => editMessage(msg, text);
       footer.appendChild(editBtn);
+    } else {
+      const playBtn = document.createElement("button");
+      playBtn.className = "play-btn";
+      playBtn.textContent = "🔊";
+      playBtn.title = "Read aloud";
+      playBtn.onclick = () => playTTSWithButton(text, playBtn);
+      footer.appendChild(playBtn);
     }
 
     msg.appendChild(content);
