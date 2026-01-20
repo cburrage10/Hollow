@@ -2041,7 +2041,8 @@ async function addTTSUsage(characters) {
 app.get("/tts/usage", async (req, res) => {
   const usage = await getTTSUsage();
   const month = getCurrentMonth();
-  res.json({ characters: usage, month });
+  const hasKey = !!process.env.ELEVENLABS_API_KEY;
+  res.json({ characters: usage, month, configured: hasKey });
 });
 
 // ElevenLabs TTS endpoint
@@ -2090,19 +2091,10 @@ app.post("/tts", async (req, res) => {
     // Track usage
     await addTTSUsage(charCount);
 
-    // Stream the audio back
-    res.set({
-      "Content-Type": "audio/mpeg",
-      "Transfer-Encoding": "chunked",
-    });
-
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
-    }
-    res.end();
+    // Get the audio data and send it
+    const audioBuffer = await response.arrayBuffer();
+    res.set("Content-Type", "audio/mpeg");
+    res.send(Buffer.from(audioBuffer));
 
   } catch (e) {
     console.error("TTS error:", e);
