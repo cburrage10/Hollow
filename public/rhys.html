@@ -673,6 +673,7 @@
         <button class="header-btn" id="voiceToggle" title="Toggle Rhys's voice">Voice Off</button>
         <button class="header-btn" id="voiceSettingsBtn" title="Voice settings">⚙️</button>
         <span id="ttsUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="TTS characters used this month">0 chars</span>
+        <span id="sttUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="STT minutes used this month">0 min</span>
       </div>
     </header>
 
@@ -1595,35 +1596,80 @@
     msgInput.focus();
   };
 
-  // Voice input
+  // Voice input (ElevenLabs STT)
   const voiceBtn = document.getElementById("voiceBtn");
-  let recognition = null;
+  const sttUsageEl = document.getElementById("sttUsage");
+  let mediaRecorder = null;
+  let audioChunks = [];
 
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onresult = (e) => {
-      msgInput.value += e.results[0][0].transcript;
-      msgInput.dispatchEvent(new Event('input'));
-    };
-
-    recognition.onend = () => voiceBtn.classList.remove('recording');
-    recognition.onerror = () => voiceBtn.classList.remove('recording');
-
-    voiceBtn.onclick = () => {
-      if (voiceBtn.classList.contains('recording')) {
-        recognition.stop();
-      } else {
-        recognition.start();
-        voiceBtn.classList.add('recording');
-      }
-    };
-  } else {
-    voiceBtn.style.display = 'none';
+  // Load and display STT usage
+  async function updateSTTUsage() {
+    try {
+      const r = await fetch('/stt/usage');
+      const data = await r.json();
+      const minutes = Math.round(data.seconds / 60);
+      sttUsageEl.textContent = `${minutes} min`;
+      sttUsageEl.title = `STT usage: ${minutes} minutes (${data.month})`;
+    } catch (e) {
+      console.error('Failed to load STT usage:', e);
+    }
   }
+  updateSTTUsage();
+
+  voiceBtn.onclick = async () => {
+    if (voiceBtn.classList.contains('recording')) {
+      // Stop recording
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          voiceBtn.classList.remove('recording');
+          voiceBtn.textContent = '...';
+
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+
+          // Send to ElevenLabs STT
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+
+          try {
+            const r = await fetch('/stt', { method: 'POST', body: formData });
+            const data = await r.json();
+
+            if (data.text) {
+              msgInput.value += data.text;
+              msgInput.dispatchEvent(new Event('input'));
+            } else if (data.error) {
+              showToast('STT error: ' + data.error);
+            }
+            updateSTTUsage();
+          } catch (e) {
+            showToast('Failed to transcribe audio');
+          }
+
+          voiceBtn.textContent = '🎤';
+        };
+
+        mediaRecorder.start();
+        voiceBtn.classList.add('recording');
+      } catch (e) {
+        showToast('Could not access microphone');
+      }
+    }
+  };
 
   // Clear chat
   document.getElementById("clearBtn").onclick = async () => {

@@ -1989,6 +1989,10 @@ The user can use these commands:
 const TTS_USAGE_KEY = "tts:usage";
 const TTS_USAGE_MONTH_KEY = "tts:usage:month";
 
+// STT Usage tracking keys
+const STT_USAGE_KEY = "stt:usage";
+const STT_USAGE_MONTH_KEY = "stt:usage:month";
+
 // Get current month string (YYYY-MM)
 function getCurrentMonth() {
   const now = new Date();
@@ -2103,6 +2107,104 @@ app.post("/tts", async (req, res) => {
 
   } catch (e) {
     console.error("TTS error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// ==========================================
+// SPEECH-TO-TEXT ENDPOINT (ElevenLabs)
+// ==========================================
+
+// Get STT usage for current month (in seconds)
+async function getSTTUsage() {
+  try {
+    const currentMonth = getCurrentMonth();
+    const storedMonth = await redis.get(STT_USAGE_MONTH_KEY);
+
+    if (storedMonth !== currentMonth) {
+      await redis.set(STT_USAGE_MONTH_KEY, currentMonth);
+      await redis.set(STT_USAGE_KEY, 0);
+      return 0;
+    }
+
+    const usage = await redis.get(STT_USAGE_KEY);
+    return parseInt(usage) || 0;
+  } catch (e) {
+    console.error("Error getting STT usage:", e);
+    return 0;
+  }
+}
+
+// Add to STT usage (in seconds)
+async function addSTTUsage(seconds) {
+  try {
+    const currentMonth = getCurrentMonth();
+    const storedMonth = await redis.get(STT_USAGE_MONTH_KEY);
+
+    if (storedMonth !== currentMonth) {
+      await redis.set(STT_USAGE_MONTH_KEY, currentMonth);
+      await redis.set(STT_USAGE_KEY, seconds);
+      return seconds;
+    }
+
+    const newTotal = await redis.incrby(STT_USAGE_KEY, seconds);
+    return newTotal;
+  } catch (e) {
+    console.error("Error adding STT usage:", e);
+    return 0;
+  }
+}
+
+// Get STT usage endpoint
+app.get("/stt/usage", async (req, res) => {
+  const usage = await getSTTUsage();
+  const month = getCurrentMonth();
+  const hasKey = !!process.env.ELEVENLABS_API_KEY;
+  // Return seconds, let frontend format as minutes
+  res.json({ seconds: usage, month, configured: hasKey });
+});
+
+// ElevenLabs STT endpoint
+app.post("/stt", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No audio file provided" });
+    }
+
+    const elevenlabsKey = process.env.ELEVENLABS_API_KEY;
+    if (!elevenlabsKey) {
+      return res.status(500).json({ error: "ElevenLabs API key not configured" });
+    }
+
+    // Create form data for ElevenLabs
+    const formData = new FormData();
+    formData.append("file", new Blob([req.file.buffer], { type: req.file.mimetype }), "audio.webm");
+    formData.append("model_id", "scribe_v1");
+
+    const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+      method: "POST",
+      headers: {
+        "xi-api-key": elevenlabsKey,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("ElevenLabs STT error:", err);
+      return res.status(response.status).json({ error: err });
+    }
+
+    const data = await response.json();
+
+    // Track usage - estimate based on audio duration or use a default
+    // ElevenLabs returns the text, we'll estimate ~5 seconds per request as fallback
+    const estimatedSeconds = 5;
+    await addSTTUsage(estimatedSeconds);
+
+    res.json({ text: data.text || "" });
+  } catch (e) {
+    console.error("STT error:", e);
     res.status(500).json({ error: String(e) });
   }
 });
