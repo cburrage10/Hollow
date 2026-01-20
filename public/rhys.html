@@ -670,15 +670,8 @@
         <button class="header-btn" id="filesBtn">Files</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
-        <select id="voiceSelect" class="header-btn" title="Rhys's voice">
-          <option value="">Voice Off</option>
-          <option value="onyx">Onyx</option>
-          <option value="echo">Echo</option>
-          <option value="fable">Fable</option>
-          <option value="alloy">Alloy</option>
-          <option value="nova">Nova</option>
-          <option value="shimmer">Shimmer</option>
-        </select>
+        <button class="header-btn" id="voiceToggle" title="Toggle Rhys's voice">Voice Off</button>
+        <span id="ttsUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="TTS characters used this month">0 chars</span>
       </div>
     </header>
 
@@ -792,22 +785,46 @@
 
   // Audio for TTS
   let currentAudio = null;
-  const voiceSelect = document.getElementById('voiceSelect');
+  let voiceEnabled = localStorage.getItem('rhys_voice_enabled') === 'true';
+  const voiceToggle = document.getElementById('voiceToggle');
+  const ttsUsageEl = document.getElementById('ttsUsage');
 
-  // Load saved voice preference
-  voiceSelect.value = localStorage.getItem('rhys_voice') || '';
-  voiceSelect.onchange = () => {
-    localStorage.setItem('rhys_voice', voiceSelect.value);
-    if (!voiceSelect.value && currentAudio) {
+  // Update voice toggle button state
+  function updateVoiceToggle() {
+    voiceToggle.textContent = voiceEnabled ? 'Voice On' : 'Voice Off';
+    voiceToggle.style.background = voiceEnabled ? 'rgba(77, 208, 225, 0.4)' : '';
+  }
+  updateVoiceToggle();
+
+  voiceToggle.onclick = () => {
+    voiceEnabled = !voiceEnabled;
+    localStorage.setItem('rhys_voice_enabled', voiceEnabled);
+    updateVoiceToggle();
+    if (!voiceEnabled && currentAudio) {
       currentAudio.pause();
       currentAudio = null;
     }
   };
 
-  // Play TTS for text
+  // Load and display TTS usage
+  async function updateTTSUsage() {
+    try {
+      const r = await fetch('/tts/usage');
+      const data = await r.json();
+      const formatted = data.characters >= 1000
+        ? `${Math.round(data.characters / 1000)}k chars`
+        : `${data.characters} chars`;
+      ttsUsageEl.textContent = formatted;
+      ttsUsageEl.title = `TTS usage: ${data.characters.toLocaleString()} characters (${data.month})`;
+    } catch (e) {
+      console.error('Failed to load TTS usage:', e);
+    }
+  }
+  updateTTSUsage();
+
+  // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
-    const voice = voiceSelect.value;
-    if (!voice || !text) return;
+    if (!voiceEnabled || !text) return;
 
     // Stop any currently playing audio
     if (currentAudio) {
@@ -819,7 +836,7 @@
       const response = await fetch('/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice })
+        body: JSON.stringify({ text })
       });
 
       if (!response.ok) {
@@ -833,6 +850,7 @@
       currentAudio.onended = () => {
         URL.revokeObjectURL(url);
         currentAudio = null;
+        updateTTSUsage(); // Refresh usage after playback
       };
       currentAudio.play();
     } catch (e) {
@@ -864,9 +882,6 @@
       activePlayButton.classList.remove('playing');
     }
 
-    // Get voice (use selected or default to onyx)
-    const voice = voiceSelect.value || 'onyx';
-
     // Update button state
     button.textContent = "⏹️";
     button.classList.add('playing');
@@ -876,7 +891,7 @@
       const response = await fetch('/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice })
+        body: JSON.stringify({ text })
       });
 
       if (!response.ok) {
@@ -897,6 +912,7 @@
         button.textContent = "🔊";
         button.classList.remove('playing');
         activePlayButton = null;
+        updateTTSUsage(); // Refresh usage after playback
       };
 
       currentAudio.onerror = () => {
@@ -1358,7 +1374,7 @@
       updateMemoryCount();
 
       // Play TTS if voice is enabled
-      if (voiceSelect.value && data.text) {
+      if (voiceEnabled && data.text) {
         playTTS(data.text);
       }
     } catch (err) {

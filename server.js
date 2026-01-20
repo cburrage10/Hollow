@@ -1982,39 +1982,113 @@ The user can use these commands:
 });
 
 // ==========================================
-// TEXT-TO-SPEECH ENDPOINT (OpenAI TTS)
+// TEXT-TO-SPEECH ENDPOINT (ElevenLabs)
 // ==========================================
 
+// TTS Usage tracking keys
+const TTS_USAGE_KEY = "tts:usage";
+const TTS_USAGE_MONTH_KEY = "tts:usage:month";
+
+// Get current month string (YYYY-MM)
+function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// Get TTS usage for current month
+async function getTTSUsage() {
+  try {
+    const currentMonth = getCurrentMonth();
+    const storedMonth = await redis.get(TTS_USAGE_MONTH_KEY);
+
+    // Reset if new month
+    if (storedMonth !== currentMonth) {
+      await redis.set(TTS_USAGE_MONTH_KEY, currentMonth);
+      await redis.set(TTS_USAGE_KEY, 0);
+      return 0;
+    }
+
+    const usage = await redis.get(TTS_USAGE_KEY);
+    return parseInt(usage) || 0;
+  } catch (e) {
+    console.error("Error getting TTS usage:", e);
+    return 0;
+  }
+}
+
+// Add to TTS usage
+async function addTTSUsage(characters) {
+  try {
+    const currentMonth = getCurrentMonth();
+    const storedMonth = await redis.get(TTS_USAGE_MONTH_KEY);
+
+    // Reset if new month
+    if (storedMonth !== currentMonth) {
+      await redis.set(TTS_USAGE_MONTH_KEY, currentMonth);
+      await redis.set(TTS_USAGE_KEY, characters);
+      return characters;
+    }
+
+    const newTotal = await redis.incrby(TTS_USAGE_KEY, characters);
+    return newTotal;
+  } catch (e) {
+    console.error("Error adding TTS usage:", e);
+    return 0;
+  }
+}
+
+// Get TTS usage endpoint
+app.get("/tts/usage", async (req, res) => {
+  const usage = await getTTSUsage();
+  const month = getCurrentMonth();
+  res.json({ characters: usage, month });
+});
+
+// ElevenLabs TTS endpoint
 app.post("/tts", async (req, res) => {
   try {
-    const { text, voice = "onyx" } = req.body;
+    const { text, voice } = req.body;
+
+    // Default to Archie (Rhys's voice) if no voice specified
+    const voiceId = voice || "kmSVBPu7loj4ayNinwWM";
 
     if (!text) {
       return res.status(400).json({ error: "Text is required" });
     }
 
-    // Limit text length to avoid huge API costs
-    const truncatedText = text.substring(0, 4000);
+    const elevenlabsKey = process.env.ELEVENLABS_API_KEY;
+    if (!elevenlabsKey) {
+      return res.status(500).json({ error: "ElevenLabs API key not configured" });
+    }
 
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    // Limit text length to avoid huge costs
+    const truncatedText = text.substring(0, 4000);
+    const charCount = truncatedText.length;
+
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "xi-api-key": elevenlabsKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "tts-1",
-        input: truncatedText,
-        voice: voice, // alloy, echo, fable, onyx, nova, shimmer
-        response_format: "mp3",
+        text: truncatedText,
+        model_id: "eleven_multilingual_v2", // V2 model, high quality
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+        },
       }),
     });
 
     if (!response.ok) {
       const err = await response.text();
-      console.error("TTS error:", err);
+      console.error("ElevenLabs TTS error:", err);
       return res.status(response.status).json({ error: err });
     }
+
+    // Track usage
+    await addTTSUsage(charCount);
 
     // Stream the audio back
     res.set({
