@@ -3,7 +3,6 @@ import { Redis } from "@upstash/redis";
 import multer from "multer";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import crypto from "crypto";
-import FormData from "form-data";
 
 // Configure multer for file uploads (store in memory)
 const upload = multer({
@@ -2177,19 +2176,16 @@ app.post("/stt", upload.single("audio"), async (req, res) => {
       return res.status(500).json({ error: "ElevenLabs API key not configured" });
     }
 
-    // Create form data for ElevenLabs using form-data package
-    const formData = new FormData();
-    formData.append("file", req.file.buffer, {
-      filename: "audio.webm",
-      contentType: req.file.mimetype || "audio/webm",
-    });
+    // Use native Node.js 18+ FormData and Blob
+    const formData = new globalThis.FormData();
+    const audioBlob = new Blob([req.file.buffer], { type: "audio/webm" });
+    formData.append("file", audioBlob, "audio.webm");
     formData.append("model_id", "scribe_v1");
 
     const response = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
       method: "POST",
       headers: {
         "xi-api-key": elevenlabsKey,
-        ...formData.getHeaders(),
       },
       body: formData,
     });
