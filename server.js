@@ -2048,10 +2048,11 @@ app.get("/tts/usage", async (req, res) => {
 // ElevenLabs TTS endpoint
 app.post("/tts", async (req, res) => {
   try {
-    const { text, voice, stability, similarity } = req.body;
+    const { text, voice, model, stability, similarity } = req.body;
 
     // Default to Archie (Rhys's voice) if no voice specified
     const voiceId = voice || "kmSVBPu7loj4ayNinwWM";
+    const modelId = model || "eleven_multilingual_v2";
 
     if (!text) {
       return res.status(400).json({ error: "Text is required" });
@@ -2078,7 +2079,7 @@ app.post("/tts", async (req, res) => {
       },
       body: JSON.stringify({
         text: truncatedText,
-        model_id: "eleven_multilingual_v2",
+        model_id: modelId,
         voice_settings: {
           stability: stabilityVal,
           similarity_boost: similarityVal,
