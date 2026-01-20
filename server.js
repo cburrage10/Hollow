@@ -2076,8 +2076,8 @@ app.post("/tts", async (req, res) => {
         text: truncatedText,
         model_id: "eleven_multilingual_v2", // V2 model, high quality
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
+          stability: 0.3,       // Lower = more expressive
+          similarity_boost: 0.8,
         },
       }),
     });
