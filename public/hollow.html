@@ -287,7 +287,7 @@
 
     .message.user .message-footer { flex-direction: row-reverse; }
 
-    .copy-btn, .download-btn {
+    .copy-btn, .download-btn, .edit-btn {
       background: none;
       border: none;
       cursor: pointer;
@@ -296,8 +296,8 @@
       padding: 2px 4px;
       transition: opacity 0.2s;
     }
-    .copy-btn:hover, .download-btn:hover { opacity: 1; }
-    .message.user .copy-btn, .message.user .download-btn { color: #1a1a1a; }
+    .copy-btn:hover, .download-btn:hover, .edit-btn:hover { opacity: 1; }
+    .message.user .copy-btn, .message.user .download-btn, .message.user .edit-btn { color: #1a1a1a; }
     .message.hollow .copy-btn, .message.hollow .download-btn { color: #999; }
 
     .image-container {
@@ -766,6 +766,9 @@
   const sendBtn = document.getElementById("send");
   const sidebar = document.getElementById("sidebar");
 
+  // Track message indices for edit functionality
+  let messageIndex = 0;
+
   // If we got session from URL, save it
   if (urlSessionId) {
     localStorage.setItem('hollow_session', urlSessionId);
@@ -871,6 +874,7 @@
   window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'hollow'}`;
+    msg.dataset.index = messageIndex++;
 
     const content = document.createElement("div");
     content.className = "content";
@@ -901,6 +905,16 @@
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
 
+    // Add edit button for user messages
+    if (isUser) {
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "✏️";
+      editBtn.title = "Edit & resend";
+      editBtn.onclick = () => editMessage(msg, text);
+      footer.appendChild(editBtn);
+    }
+
     msg.appendChild(content);
     msg.appendChild(footer);
 
@@ -914,6 +928,43 @@
   function clearChat() {
     const messages = chatContainer.querySelectorAll('.message');
     messages.forEach(m => m.remove());
+    messageIndex = 0;
+  }
+
+  // Edit message: put text in input, remove this message and all after it
+  async function editMessage(msgElement, text) {
+    const idx = parseInt(msgElement.dataset.index);
+
+    // Put text in input field
+    msgInput.value = text;
+    msgInput.focus();
+    msgInput.dispatchEvent(new Event('input')); // trigger auto-resize
+
+    // Get all messages and remove this one and everything after it
+    const allMessages = Array.from(chatContainer.querySelectorAll('.message'));
+    const messagesToRemove = allMessages.filter(m => parseInt(m.dataset.index) >= idx);
+    const removeCount = messagesToRemove.length;
+
+    messagesToRemove.forEach(m => m.remove());
+
+    // Update backend - remove these messages from history
+    if (currentSessionId && removeCount > 0) {
+      try {
+        await fetch(`/sessions/${currentSessionId}/history/truncate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: removeCount })
+        });
+      } catch (e) {
+        console.error('Failed to truncate history:', e);
+      }
+    }
+
+    // Reset message index to match remaining messages
+    const remaining = chatContainer.querySelectorAll('.message');
+    messageIndex = remaining.length;
+
+    showToast('Edit your message and send again');
   }
 
   function showTyping(show) {
@@ -1035,6 +1086,7 @@
   function addMessageFromHistory(text, isUser, timestamp, imageUrl = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'hollow'}`;
+    msg.dataset.index = messageIndex++;
 
     const content = document.createElement("div");
     content.className = "content";
@@ -1064,6 +1116,16 @@
 
     footer.appendChild(ts);
     footer.appendChild(copyBtn);
+
+    // Add edit button for user messages
+    if (isUser) {
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "✏️";
+      editBtn.title = "Edit & resend";
+      editBtn.onclick = () => editMessage(msg, text);
+      footer.appendChild(editBtn);
+    }
 
     msg.appendChild(content);
     msg.appendChild(footer);

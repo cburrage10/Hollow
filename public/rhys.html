@@ -197,6 +197,16 @@
     .header-btn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
     .header-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    #voiceSelect {
+      background: rgba(0, 0, 0, 0.3);
+      color: #e8f4f8;
+      min-width: 90px;
+    }
+    #voiceSelect option {
+      background: #1e3a5f;
+      color: #e8f4f8;
+    }
+
     #memoryCount, #fileCount {
       font-size: 11px;
       color: #4dd0e1;
@@ -287,7 +297,7 @@
 
     .message.user .message-footer { flex-direction: row-reverse; }
 
-    .copy-btn, .download-btn {
+    .copy-btn, .download-btn, .edit-btn {
       background: none;
       border: none;
       cursor: pointer;
@@ -296,8 +306,8 @@
       padding: 2px 4px;
       transition: opacity 0.2s;
     }
-    .copy-btn:hover, .download-btn:hover { opacity: 1; }
-    .message.user .copy-btn, .message.user .download-btn { color: #0d1b2a; }
+    .copy-btn:hover, .download-btn:hover, .edit-btn:hover { opacity: 1; }
+    .message.user .copy-btn, .message.user .download-btn, .message.user .edit-btn { color: #0d1b2a; }
     .message.rhys .copy-btn, .message.rhys .download-btn { color: #7a9bb3; }
 
     .image-container {
@@ -659,8 +669,15 @@
         <button class="header-btn" id="filesBtn">Files</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
-        <button class="header-btn" id="btnConnect">Voice</button>
-        <button class="header-btn" id="btnDisconnect" disabled>End</button>
+        <select id="voiceSelect" class="header-btn" title="Rhys's voice">
+          <option value="">Voice Off</option>
+          <option value="onyx">Onyx</option>
+          <option value="echo">Echo</option>
+          <option value="fable">Fable</option>
+          <option value="alloy">Alloy</option>
+          <option value="nova">Nova</option>
+          <option value="shimmer">Shimmer</option>
+        </select>
       </div>
     </header>
 
@@ -769,6 +786,59 @@
   const sendBtn = document.getElementById("send");
   const sidebar = document.getElementById("sidebar");
 
+  // Track message indices for edit functionality
+  let messageIndex = 0;
+
+  // Audio for TTS
+  let currentAudio = null;
+  const voiceSelect = document.getElementById('voiceSelect');
+
+  // Load saved voice preference
+  voiceSelect.value = localStorage.getItem('rhys_voice') || '';
+  voiceSelect.onchange = () => {
+    localStorage.setItem('rhys_voice', voiceSelect.value);
+    if (!voiceSelect.value && currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+  };
+
+  // Play TTS for text
+  async function playTTS(text) {
+    const voice = voiceSelect.value;
+    if (!voice || !text) return;
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    try {
+      const response = await fetch('/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice })
+      });
+
+      if (!response.ok) {
+        console.error('TTS failed:', await response.text());
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      currentAudio = new Audio(url);
+      currentAudio.onended = () => {
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+      };
+      currentAudio.play();
+    } catch (e) {
+      console.error('TTS error:', e);
+    }
+  }
+
   // If we got session from URL, save it
   if (urlSessionId) {
     localStorage.setItem('rhys_session', urlSessionId);
@@ -874,6 +944,7 @@
   window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'rhys'}`;
+    msg.dataset.index = messageIndex++;
 
     const content = document.createElement("div");
     content.className = "content";
@@ -904,6 +975,16 @@
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
 
+    // Add edit button for user messages
+    if (isUser) {
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "✏️";
+      editBtn.title = "Edit & resend";
+      editBtn.onclick = () => editMessage(msg, text);
+      footer.appendChild(editBtn);
+    }
+
     msg.appendChild(content);
     msg.appendChild(footer);
 
@@ -917,6 +998,43 @@
   function clearChat() {
     const messages = chatContainer.querySelectorAll('.message');
     messages.forEach(m => m.remove());
+    messageIndex = 0;
+  }
+
+  // Edit message: put text in input, remove this message and all after it
+  async function editMessage(msgElement, text) {
+    const idx = parseInt(msgElement.dataset.index);
+
+    // Put text in input field
+    msgInput.value = text;
+    msgInput.focus();
+    msgInput.dispatchEvent(new Event('input')); // trigger auto-resize
+
+    // Get all messages and remove this one and everything after it
+    const allMessages = Array.from(chatContainer.querySelectorAll('.message'));
+    const messagesToRemove = allMessages.filter(m => parseInt(m.dataset.index) >= idx);
+    const removeCount = messagesToRemove.length;
+
+    messagesToRemove.forEach(m => m.remove());
+
+    // Update backend - remove these messages from history
+    if (currentSessionId && removeCount > 0) {
+      try {
+        await fetch(`${API_PREFIX}/sessions/${currentSessionId}/history/truncate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count: removeCount })
+        });
+      } catch (e) {
+        console.error('Failed to truncate history:', e);
+      }
+    }
+
+    // Reset message index to match remaining messages
+    const remaining = chatContainer.querySelectorAll('.message');
+    messageIndex = remaining.length;
+
+    showToast('Edit your message and send again');
   }
 
   function showTyping(show) {
@@ -1038,6 +1156,7 @@
   function addMessageFromHistory(text, isUser, timestamp, imageUrl = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'rhys'}`;
+    msg.dataset.index = messageIndex++;
 
     const content = document.createElement("div");
     content.className = "content";
@@ -1067,6 +1186,16 @@
 
     footer.appendChild(ts);
     footer.appendChild(copyBtn);
+
+    // Add edit button for user messages
+    if (isUser) {
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "✏️";
+      editBtn.title = "Edit & resend";
+      editBtn.onclick = () => editMessage(msg, text);
+      footer.appendChild(editBtn);
+    }
 
     msg.appendChild(content);
     msg.appendChild(footer);
@@ -1135,8 +1264,14 @@
       }
 
       showTyping(false);
-      addMessage(data.text || data.error || "(no reply)", false, false, data.image);
+      const responseText = data.text || data.error || "(no reply)";
+      addMessage(responseText, false, false, data.image);
       updateMemoryCount();
+
+      // Play TTS if voice is enabled
+      if (voiceSelect.value && data.text) {
+        playTTS(data.text);
+      }
     } catch (err) {
       showTyping(false);
       addMessage("Error: " + err.message, false);
@@ -1551,12 +1686,6 @@
       document.getElementById("fileCount").textContent = `${data.count} ${data.count === 1 ? 'file' : 'files'}`;
     } catch (e) {}
   }
-
-  // Voice buttons (placeholder - would need rhys-specific client.js)
-  document.getElementById('btnConnect').onclick = () => {
-    showToast('Voice chat coming soon for Rhys!');
-  };
-  document.getElementById('btnDisconnect').onclick = () => {};
 
   // Initialize
   loadSessions();

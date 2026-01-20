@@ -432,6 +432,27 @@ app.delete("/sessions/:id/history", async (req, res) => {
   res.json({ success: true });
 });
 
+// Truncate chat history - remove N most recent messages (for edit/resend)
+app.post("/sessions/:id/history/truncate", async (req, res) => {
+  const { id } = req.params;
+  const { count } = req.body;
+
+  if (!count || count < 1) {
+    return res.json({ success: false, error: "Invalid count" });
+  }
+
+  try {
+    const key = getChatKey(id);
+    // LTRIM keeps elements from start to end, so to remove 'count' from the left (newest),
+    // we trim from index 'count' to -1
+    await redis.ltrim(key, count, -1);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Error truncating history:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // Search across all chats
 app.get("/search", async (req, res) => {
   const query = (req.query.q || "").toLowerCase().trim();
@@ -1583,6 +1604,25 @@ app.delete("/rhys/sessions/:id/history", async (req, res) => {
   res.json({ success: true });
 });
 
+// Truncate Rhys chat history - remove N most recent messages (for edit/resend)
+app.post("/rhys/sessions/:id/history/truncate", async (req, res) => {
+  const { id } = req.params;
+  const { count } = req.body;
+
+  if (!count || count < 1) {
+    return res.json({ success: false, error: "Invalid count" });
+  }
+
+  try {
+    const key = getRhysChatKey(id);
+    await redis.ltrim(key, count, -1);
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Error truncating Rhys history:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // Rhys Search
 app.get("/rhys/search", async (req, res) => {
   const query = (req.query.q || "").toLowerCase().trim();
@@ -1937,6 +1977,61 @@ The user can use these commands:
     res.json({ text: response });
   } catch (e) {
     console.error("Rhys chat error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// ==========================================
+// TEXT-TO-SPEECH ENDPOINT (OpenAI TTS)
+// ==========================================
+
+app.post("/tts", async (req, res) => {
+  try {
+    const { text, voice = "onyx" } = req.body;
+
+    if (!text) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    // Limit text length to avoid huge API costs
+    const truncatedText = text.substring(0, 4000);
+
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "tts-1",
+        input: truncatedText,
+        voice: voice, // alloy, echo, fable, onyx, nova, shimmer
+        response_format: "mp3",
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("TTS error:", err);
+      return res.status(response.status).json({ error: err });
+    }
+
+    // Stream the audio back
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Transfer-Encoding": "chunked",
+    });
+
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+
+  } catch (e) {
+    console.error("TTS error:", e);
     res.status(500).json({ error: String(e) });
   }
 });
