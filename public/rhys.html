@@ -671,6 +671,7 @@
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
         <button class="header-btn" id="voiceToggle" title="Toggle Rhys's voice">Voice Off</button>
+        <button class="header-btn" id="voiceSettingsBtn" title="Voice settings">⚙️</button>
         <span id="ttsUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="TTS characters used this month">0 chars</span>
       </div>
     </header>
@@ -742,6 +743,52 @@
         <button class="export-format-btn" id="exportTxt">📄 Text (.txt)</button>
         <button class="export-format-btn" id="exportMd">📝 Markdown (.md)</button>
         <button class="export-format-btn" id="exportJson">📋 JSON (.json)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Voice Settings Modal -->
+  <div class="modal" id="voiceSettingsModal">
+    <div class="modal-content" style="min-width: 320px; max-width: 400px;">
+      <div class="modal-header">
+        <h2>Voice Settings</h2>
+        <button class="close-btn" id="closeVoiceSettings">&times;</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div>
+          <label style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">
+            <span>Stability</span>
+            <span id="stabilityValue">0.3</span>
+          </label>
+          <input type="range" id="stabilitySlider" min="0" max="100" value="30" style="width: 100%;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #5a7a8a;">
+            <span>Expressive</span>
+            <span>Stable</span>
+          </div>
+        </div>
+        <div>
+          <label style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">
+            <span>Clarity</span>
+            <span id="similarityValue">0.8</span>
+          </label>
+          <input type="range" id="similaritySlider" min="0" max="100" value="80" style="width: 100%;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #5a7a8a;">
+            <span>Natural</span>
+            <span>Clear</span>
+          </div>
+        </div>
+        <div>
+          <label style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">
+            <span>Playback Speed</span>
+            <span id="speedValue">1.0x</span>
+          </label>
+          <input type="range" id="speedSlider" min="50" max="200" value="100" style="width: 100%;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #5a7a8a;">
+            <span>0.5x</span>
+            <span>2x</span>
+          </div>
+        </div>
+        <button id="resetVoiceSettings" style="padding: 8px 16px; background: rgba(77, 208, 225, 0.2); color: #4dd0e1; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 6px; cursor: pointer; font-size: 13px;">Reset to Defaults</button>
       </div>
     </div>
   </div>
@@ -822,6 +869,61 @@
   }
   updateTTSUsage();
 
+  // Voice settings
+  const voiceSettingsModal = document.getElementById('voiceSettingsModal');
+  const stabilitySlider = document.getElementById('stabilitySlider');
+  const similaritySlider = document.getElementById('similaritySlider');
+  const speedSlider = document.getElementById('speedSlider');
+  const stabilityValue = document.getElementById('stabilityValue');
+  const similarityValue = document.getElementById('similarityValue');
+  const speedValue = document.getElementById('speedValue');
+
+  // Load saved voice settings
+  const defaultVoiceSettings = { stability: 30, similarity: 80, speed: 100 };
+  let voiceSettings = JSON.parse(localStorage.getItem('rhys_voice_settings')) || defaultVoiceSettings;
+
+  function applyVoiceSettings() {
+    stabilitySlider.value = voiceSettings.stability;
+    similaritySlider.value = voiceSettings.similarity;
+    speedSlider.value = voiceSettings.speed;
+    stabilityValue.textContent = (voiceSettings.stability / 100).toFixed(1);
+    similarityValue.textContent = (voiceSettings.similarity / 100).toFixed(1);
+    speedValue.textContent = (voiceSettings.speed / 100).toFixed(1) + 'x';
+  }
+  applyVoiceSettings();
+
+  function saveVoiceSettings() {
+    localStorage.setItem('rhys_voice_settings', JSON.stringify(voiceSettings));
+  }
+
+  stabilitySlider.oninput = () => {
+    voiceSettings.stability = parseInt(stabilitySlider.value);
+    stabilityValue.textContent = (voiceSettings.stability / 100).toFixed(1);
+    saveVoiceSettings();
+  };
+
+  similaritySlider.oninput = () => {
+    voiceSettings.similarity = parseInt(similaritySlider.value);
+    similarityValue.textContent = (voiceSettings.similarity / 100).toFixed(1);
+    saveVoiceSettings();
+  };
+
+  speedSlider.oninput = () => {
+    voiceSettings.speed = parseInt(speedSlider.value);
+    speedValue.textContent = (voiceSettings.speed / 100).toFixed(1) + 'x';
+    saveVoiceSettings();
+  };
+
+  document.getElementById('voiceSettingsBtn').onclick = () => voiceSettingsModal.classList.add('show');
+  document.getElementById('closeVoiceSettings').onclick = () => voiceSettingsModal.classList.remove('show');
+  voiceSettingsModal.onclick = (e) => { if (e.target === voiceSettingsModal) voiceSettingsModal.classList.remove('show'); };
+
+  document.getElementById('resetVoiceSettings').onclick = () => {
+    voiceSettings = { ...defaultVoiceSettings };
+    applyVoiceSettings();
+    saveVoiceSettings();
+  };
+
   // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
     if (!voiceEnabled || !text) return;
@@ -836,7 +938,11 @@
       const response = await fetch('/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({
+          text,
+          stability: voiceSettings.stability / 100,
+          similarity: voiceSettings.similarity / 100
+        })
       });
 
       if (!response.ok) {
@@ -847,10 +953,11 @@
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       currentAudio = new Audio(url);
+      currentAudio.playbackRate = voiceSettings.speed / 100;
       currentAudio.onended = () => {
         URL.revokeObjectURL(url);
         currentAudio = null;
-        updateTTSUsage(); // Refresh usage after playback
+        updateTTSUsage();
       };
       currentAudio.play();
     } catch (e) {
@@ -891,7 +998,11 @@
       const response = await fetch('/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({
+          text,
+          stability: voiceSettings.stability / 100,
+          similarity: voiceSettings.similarity / 100
+        })
       });
 
       if (!response.ok) {
@@ -905,6 +1016,7 @@
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       currentAudio = new Audio(url);
+      currentAudio.playbackRate = voiceSettings.speed / 100;
 
       currentAudio.onended = () => {
         URL.revokeObjectURL(url);
@@ -912,7 +1024,7 @@
         button.textContent = "🔊";
         button.classList.remove('playing');
         activePlayButton = null;
-        updateTTSUsage(); // Refresh usage after playback
+        updateTTSUsage();
       };
 
       currentAudio.onerror = () => {

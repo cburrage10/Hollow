@@ -2048,7 +2048,7 @@ app.get("/tts/usage", async (req, res) => {
 // ElevenLabs TTS endpoint
 app.post("/tts", async (req, res) => {
   try {
-    const { text, voice } = req.body;
+    const { text, voice, stability, similarity } = req.body;
 
     // Default to Archie (Rhys's voice) if no voice specified
     const voiceId = voice || "kmSVBPu7loj4ayNinwWM";
@@ -2066,6 +2066,10 @@ app.post("/tts", async (req, res) => {
     const truncatedText = text.substring(0, 4000);
     const charCount = truncatedText.length;
 
+    // Use provided settings or defaults
+    const stabilityVal = typeof stability === 'number' ? stability : 0.3;
+    const similarityVal = typeof similarity === 'number' ? similarity : 0.8;
+
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
       method: "POST",
       headers: {
@@ -2074,10 +2078,10 @@ app.post("/tts", async (req, res) => {
       },
       body: JSON.stringify({
         text: truncatedText,
-        model_id: "eleven_multilingual_v2", // V2 model, high quality
+        model_id: "eleven_multilingual_v2",
         voice_settings: {
-          stability: 0.3,       // Lower = more expressive
-          similarity_boost: 0.8,
+          stability: stabilityVal,
+          similarity_boost: similarityVal,
         },
       }),
     });
