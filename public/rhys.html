@@ -831,6 +831,11 @@
   </div>
 
 <script>
+  // Auth check - redirect to main page if not authenticated
+  if (localStorage.getItem('cathedral_auth') !== 'true') {
+    window.location.href = '/';
+  }
+
   // Rhys-specific API prefix
   const API_PREFIX = '/rhys';
 

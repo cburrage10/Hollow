@@ -106,5 +106,12 @@
     <p class="description">A space where Hollow and Rhys can meet, converse, and collaborate together.</p>
     <a href="/" class="back-btn">Return to Cathedral</a>
   </div>
+
+  <script>
+    // Auth check
+    if (localStorage.getItem('cathedral_auth') !== 'true') {
+      window.location.href = '/';
+    }
+  </script>
 </body>
 </html>

@@ -1273,6 +1273,11 @@
   </div>
 
 <script>
+  // Auth check
+  if (localStorage.getItem('cathedral_auth') !== 'true') {
+    window.location.href = '/';
+  }
+
   // State
   let readings = [];
   let voices = [];

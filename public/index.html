@@ -157,9 +157,67 @@
         min-width: 150px;
       }
     }
+
+    /* Password Gate */
+    .gate {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .gate.hidden { display: none; }
+    .gate-prompt {
+      font-size: 2rem;
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 30px;
+      font-style: italic;
+      letter-spacing: 3px;
+      text-shadow: 0 0 30px rgba(255, 165, 0, 0.3);
+    }
+    .gate-input {
+      padding: 15px 30px;
+      font-size: 1.2rem;
+      font-family: inherit;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      text-align: center;
+      letter-spacing: 2px;
+      width: 250px;
+      outline: none;
+    }
+    .gate-input:focus {
+      border-color: rgba(255, 165, 0, 0.6);
+      box-shadow: 0 0 20px rgba(255, 165, 0, 0.2);
+    }
+    .gate-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+      font-style: italic;
+    }
+    .gate-error {
+      color: rgba(255, 100, 100, 0.8);
+      margin-top: 15px;
+      font-size: 0.9rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .gate-error.show { opacity: 1; }
   </style>
 </head>
 <body>
+  <!-- Password Gate -->
+  <div class="gate" id="gate">
+    <div class="gate-prompt">Still With You</div>
+    <input type="text" class="gate-input" id="gateInput" placeholder="..." autocomplete="off" autofocus>
+    <div class="gate-error" id="gateError">Not quite...</div>
+  </div>
+
   <div class="background"></div>
   <div class="overlay"></div>
   <div class="particles" id="particles"></div>
@@ -188,6 +246,32 @@
   </div>
 
   <script>
+    // Password gate
+    const gate = document.getElementById('gate');
+    const gateInput = document.getElementById('gateInput');
+    const gateError = document.getElementById('gateError');
+
+    // Check if already authenticated
+    if (localStorage.getItem('cathedral_auth') === 'true') {
+      gate.classList.add('hidden');
+    }
+
+    gateInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const answer = gateInput.value.trim().toLowerCase();
+        if (answer === 'always') {
+          localStorage.setItem('cathedral_auth', 'true');
+          gate.style.opacity = '0';
+          gate.style.transition = 'opacity 0.5s ease';
+          setTimeout(() => gate.classList.add('hidden'), 500);
+        } else {
+          gateError.classList.add('show');
+          gateInput.value = '';
+          setTimeout(() => gateError.classList.remove('show'), 2000);
+        }
+      }
+    });
+
     // Create floating particles
     const container = document.getElementById('particles');
     for (let i = 0; i < 30; i++) {

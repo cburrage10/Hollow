@@ -752,6 +752,11 @@
   </div>
 
 <script>
+  // Auth check - redirect to main page if not authenticated
+  if (localStorage.getItem('cathedral_auth') !== 'true') {
+    window.location.href = '/';
+  }
+
   // Check for session in URL
   const urlParams = new URLSearchParams(window.location.search);
   const urlSessionId = urlParams.get('s');
