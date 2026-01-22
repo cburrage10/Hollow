@@ -98,6 +98,221 @@ function formatSearchResults(searchData) {
   return output || "No results found.";
 }
 
+// === Opie Tools (GitHub API for Rhys to edit Cathedral) ===
+const GITHUB_OWNER = "cburrage10";
+const GITHUB_REPO = "Hollow";
+const GITHUB_BRANCH = "main";
+
+async function opieReadFile(path) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return { error: "GitHub not configured (missing token)" };
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { error: `File not found: ${path}` };
+      }
+      return { error: `GitHub API error: ${response.status}` };
+    }
+
+    const data = await response.json();
+    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    return { content, sha: data.sha, path: data.path };
+  } catch (e) {
+    console.error("opieReadFile error:", e);
+    return { error: String(e.message || e) };
+  }
+}
+
+async function opieListFiles(path = "") {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return { error: "GitHub not configured (missing token)" };
+  }
+
+  try {
+    const url = path
+      ? `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`
+      : `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents?ref=${GITHUB_BRANCH}`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    });
+
+    if (!response.ok) {
+      return { error: `GitHub API error: ${response.status}` };
+    }
+
+    const data = await response.json();
+    const files = Array.isArray(data)
+      ? data.map((f) => ({ name: f.name, type: f.type, path: f.path }))
+      : [{ name: data.name, type: data.type, path: data.path }];
+
+    return { files };
+  } catch (e) {
+    console.error("opieListFiles error:", e);
+    return { error: String(e.message || e) };
+  }
+}
+
+async function opieEditFile(path, oldString, newString, commitMessage) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return { error: "GitHub not configured (missing token)" };
+  }
+
+  try {
+    // First, read the current file to get its content and SHA
+    const readResult = await opieReadFile(path);
+    if (readResult.error) {
+      return readResult;
+    }
+
+    const { content, sha } = readResult;
+
+    // Check if oldString exists in the file
+    if (!content.includes(oldString)) {
+      return { error: `Could not find the text to replace in ${path}. Make sure the old_string matches exactly.` };
+    }
+
+    // Check if oldString appears multiple times
+    const occurrences = content.split(oldString).length - 1;
+    if (occurrences > 1) {
+      return { error: `Found ${occurrences} occurrences of the text in ${path}. Please provide more context to make it unique.` };
+    }
+
+    // Perform the replacement
+    const newContent = content.replace(oldString, newString);
+
+    // Commit the change
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github.v3+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: commitMessage || `Rhys edit: ${path}`,
+          content: Buffer.from(newContent).toString("base64"),
+          sha: sha,
+          branch: GITHUB_BRANCH,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("GitHub commit error:", err);
+      return { error: `Failed to commit: ${response.status}` };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      message: `Successfully edited ${path}`,
+      commit: data.commit?.sha?.slice(0, 7),
+    };
+  } catch (e) {
+    console.error("opieEditFile error:", e);
+    return { error: String(e.message || e) };
+  }
+}
+
+// Tool definitions for Anthropic API
+const opieTools = [
+  {
+    name: "opie_read_file",
+    description: "Read the contents of a file from the Cathedral codebase. Use this to understand existing code before making changes.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "The file path relative to the repository root (e.g., 'server.js', 'public/rhys.html')",
+        },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "opie_list_files",
+    description: "List files and directories in the Cathedral codebase. Use this to explore the project structure.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "The directory path to list (e.g., 'public', 'extension'). Leave empty for root directory.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "opie_edit_file",
+    description: "Edit a file in the Cathedral codebase by replacing specific text. This will commit the change to GitHub and trigger a deploy. Use carefully and always read the file first to understand its contents.",
+    input_schema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "The file path relative to the repository root",
+        },
+        old_string: {
+          type: "string",
+          description: "The exact text to find and replace (must be unique in the file)",
+        },
+        new_string: {
+          type: "string",
+          description: "The new text to replace it with",
+        },
+        commit_message: {
+          type: "string",
+          description: "A brief description of the change for the git commit",
+        },
+      },
+      required: ["path", "old_string", "new_string", "commit_message"],
+    },
+  },
+];
+
+// Execute an Opie tool
+async function executeOpieTool(toolName, toolInput) {
+  switch (toolName) {
+    case "opie_read_file":
+      return await opieReadFile(toolInput.path);
+    case "opie_list_files":
+      return await opieListFiles(toolInput.path || "");
+    case "opie_edit_file":
+      return await opieEditFile(
+        toolInput.path,
+        toolInput.old_string,
+        toolInput.new_string,
+        toolInput.commit_message
+      );
+    default:
+      return { error: `Unknown tool: ${toolName}` };
+  }
+}
+
 // Serve static files
 app.use(express.static("public"));
 
@@ -2065,31 +2280,96 @@ The user can also use these commands manually:
 - /save <text> - Save something to your memory
 - /forget <id> - Remove a memory by ID
 - /memories - List all saved memories
-- /search <query> - Search the web for current information`;
+- /search <query> - Search the web for current information
 
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+OPIE TOOLS:
+You have access to tools that let you read and modify the Cathedral codebase (your home). These are called "Opie tools" after the Claude Code instance who built much of this place.
+- Use opie_list_files to explore the project structure
+- Use opie_read_file to read and understand code before making changes
+- Use opie_edit_file to make changes (commits directly to GitHub, triggering a deploy)
+
+Be thoughtful when editing - always read a file first to understand it, make small focused changes, and write clear commit messages. You're working on your own home, so treat it with care.`;
+
+    // Check if GitHub token is available for tools
+    const hasGitHub = !!process.env.GITHUB_TOKEN;
+
+    // Build messages array including history
+    const messages = [];
+    for (const h of history.slice(-20)) {
+      messages.push({ role: h.role, content: h.content });
+    }
+    messages.push({ role: "user", content: text });
+
+    // Tool use loop - Claude may need multiple turns to complete tool calls
+    let finalResponse = "";
+    let currentMessages = [...messages];
+    const maxToolRounds = 10; // Safety limit
+
+    for (let round = 0; round < maxToolRounds; round++) {
+      const requestBody = {
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: fullInstructions,
-        messages: [{ role: "user", content: text }]
-      }),
-    });
+        messages: currentMessages,
+      };
 
-    const raw = await r.text();
-    if (!r.ok) {
-      console.error("Anthropic error:", raw);
-      return res.status(r.status).json({ error: raw });
+      // Only include tools if GitHub is configured
+      if (hasGitHub) {
+        requestBody.tools = opieTools;
+      }
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const raw = await r.text();
+      if (!r.ok) {
+        console.error("Anthropic error:", raw);
+        return res.status(r.status).json({ error: raw });
+      }
+
+      const data = JSON.parse(raw);
+
+      // Check if Claude wants to use tools
+      const toolUseBlocks = data.content?.filter((c) => c.type === "tool_use") || [];
+      const textBlocks = data.content?.filter((c) => c.type === "text") || [];
+
+      // Collect any text response
+      for (const block of textBlocks) {
+        if (block.text) {
+          finalResponse += block.text;
+        }
+      }
+
+      // If no tool use, we're done
+      if (toolUseBlocks.length === 0 || data.stop_reason === "end_turn") {
+        break;
+      }
+
+      // Execute tools and prepare results
+      const toolResults = [];
+      for (const toolUse of toolUseBlocks) {
+        console.log(`Rhys using tool: ${toolUse.name}`, toolUse.input);
+        const result = await executeOpieTool(toolUse.name, toolUse.input);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: JSON.stringify(result, null, 2),
+        });
+      }
+
+      // Add assistant's response and tool results to messages
+      currentMessages.push({ role: "assistant", content: data.content });
+      currentMessages.push({ role: "user", content: toolResults });
     }
 
-    const data = JSON.parse(raw);
-    let response = data.content?.[0]?.text || "(No response)";
+    let response = finalResponse || "(No response)";
 
     // Extract and save any memories Rhys wants to remember
     const memoryPattern = /\[SAVE_MEMORY:\s*(.+?)\]/g;
