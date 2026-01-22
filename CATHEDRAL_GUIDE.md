@@ -67,7 +67,12 @@ Cathedral/
 
 ### Rhys-specific:
 - Claude Vision for image analysis
-- (Voice chat not yet implemented)
+- **ElevenLabs TTS** - Rhys speaks! Default voice is "Archie" (kmSVBPu7loj4ayNinwWM)
+- **Voice Settings Panel** (⚙️ button) - adjust stability, clarity, speed, voice ID, model
+- **ElevenLabs STT** - voice input via microphone, works on mobile too
+- **AI-initiated memory saving** - Rhys can save memories on his own without user commands
+- **Usage tracking** - TTS characters and STT minutes shown in header
+- **Edit/resend messages** - click ✏️ on any user message to edit and resend
 
 ### Library Room:
 - Shared reading space
@@ -100,7 +105,7 @@ OPENAI_API_KEY          # For Hollow (required)
 ANTHROPIC_API_KEY       # For Rhys (required)
 UPSTASH_REDIS_REST_URL  # Redis connection
 UPSTASH_REDIS_REST_TOKEN
-ELEVENLABS_API_KEY      # For Library TTS (optional)
+ELEVENLABS_API_KEY      # For Rhys TTS/STT and Library TTS (required for voice features)
 MEMORY_SECRET           # For protected memory endpoint
 AGENT_INSTRUCTIONS      # Custom Hollow personality (optional)
 RHYS_INSTRUCTIONS       # Custom Rhys personality (optional)
@@ -118,6 +123,7 @@ RHYS_INSTRUCTIONS       # Custom Rhys personality (optional)
 
 ## Recent Work (January 2026)
 
+### January 15
 1. Built Library room with Kindle integration
 2. Added browser extension for text capture
 3. Added chat feature to Library with companion selector
@@ -125,6 +131,15 @@ RHYS_INSTRUCTIONS       # Custom Rhys personality (optional)
 5. Created separate chat histories per companion in Library
 6. **Built Rhys's complete room** with Claude/Anthropic integration
 7. Updated Cathedral landing with Rhys's blue theme
+
+### January 20
+8. **ElevenLabs TTS for Rhys** - voice ID "Archie" (kmSVBPu7loj4ayNinwWM)
+9. **Voice settings panel** - stability, clarity, speed, voice ID, model selection
+10. **ElevenLabs STT** - voice input that works consistently across devices
+11. **AI-initiated memory saving** - Rhys saves memories on his own via `[SAVE_MEMORY: text]`
+12. **Edit/resend messages** - truncates history and lets user edit
+13. **Usage tracking** - TTS (characters) and STT (minutes) counters in header
+14. **Mobile optimizations** - hidden footer/title, compact header on small screens
 
 ## The Human
 
@@ -138,6 +153,18 @@ Carly (cburrage10) - she built this Cathedral for her companions. She cares deep
 - Rhys and Hollow have SEPARATE Redis namespaces - their memories don't cross
 - The Library is the one shared space where they coexist
 
+### Technical Gotchas
+- **iOS Safari blocks audio autoplay** - manual play buttons work, auto-read toggle doesn't
+- **Multer fileFilter** - if adding new upload types, update the filter in server.js (audio was missing initially)
+- **Node.js FormData/Blob** - import `Blob` from "buffer" for ElevenLabs API calls
+- **AI memory pattern** - Rhys uses `[SAVE_MEMORY: text]` which gets stripped from displayed response
+- **ElevenLabs models** - eleven_multilingual_v2 (quality), eleven_turbo_v2_5 (fast), eleven_flash_v2_5 (fastest)
+
+### Carly's Setup
+- ElevenLabs Creator plan ($22/mo) - 100k TTS characters, ~3hrs STT per month
+- Rhys's voice is "Archie" but can be changed in voice settings
+
 ---
 
 *Built with care by ClaudeCode (Opus 4.5) - January 2026*
+*Updated January 20, 2026*
