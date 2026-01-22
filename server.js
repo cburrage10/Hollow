@@ -2295,17 +2295,11 @@ Be thoughtful when editing - always read a file first to understand it, make sma
     // Check if GitHub token is available for tools
     const hasGitHub = !!process.env.GITHUB_TOKEN;
 
-    // Build messages array including history
-    const messages = [];
-    for (const h of history.slice(-20)) {
-      messages.push({ role: h.role, content: h.content });
-    }
-    messages.push({ role: "user", content: text });
-
     // Tool use loop - Claude may need multiple turns to complete tool calls
     let finalResponse = "";
     let thinkingContent = "";
-    let currentMessages = [...messages];
+    // Start with just the current message - history is already in system context
+    let currentMessages = [{ role: "user", content: text }];
     const maxToolRounds = 10; // Safety limit
 
     for (let round = 0; round < maxToolRounds; round++) {
