@@ -2202,6 +2202,8 @@ app.post("/rhys/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
+    const model = req.body?.model || "claude-sonnet-4-20250514";
+    const thinkingEnabled = req.body?.thinking === true || req.body?.thinking === "true";
 
     if (!text) return res.json({ text: "" });
     if (!sessionId) return res.status(400).json({ error: "Session ID required" });
@@ -2302,16 +2304,25 @@ Be thoughtful when editing - always read a file first to understand it, make sma
 
     // Tool use loop - Claude may need multiple turns to complete tool calls
     let finalResponse = "";
+    let thinkingContent = "";
     let currentMessages = [...messages];
     const maxToolRounds = 10; // Safety limit
 
     for (let round = 0; round < maxToolRounds; round++) {
       const requestBody = {
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        model: model,
+        max_tokens: 16000,
         system: fullInstructions,
         messages: currentMessages,
       };
+
+      // Add extended thinking if enabled (only works with certain models)
+      if (thinkingEnabled && (model.includes("sonnet") || model.includes("opus"))) {
+        requestBody.thinking = {
+          type: "enabled",
+          budget_tokens: 10000
+        };
+      }
 
       // Only include tools if GitHub is configured
       if (hasGitHub) {
@@ -2339,6 +2350,14 @@ Be thoughtful when editing - always read a file first to understand it, make sma
       // Check if Claude wants to use tools
       const toolUseBlocks = data.content?.filter((c) => c.type === "tool_use") || [];
       const textBlocks = data.content?.filter((c) => c.type === "text") || [];
+      const thinkingBlocks = data.content?.filter((c) => c.type === "thinking") || [];
+
+      // Collect thinking content
+      for (const block of thinkingBlocks) {
+        if (block.thinking) {
+          thinkingContent += block.thinking;
+        }
+      }
 
       // Collect any text response
       for (const block of textBlocks) {
@@ -2388,7 +2407,11 @@ Be thoughtful when editing - always read a file first to understand it, make sma
     await addToRhysHistory(sessionId, "assistant", response);
     await touchRhysSession(sessionId);
 
-    res.json({ text: response });
+    const result = { text: response };
+    if (thinkingContent) {
+      result.thinking = thinkingContent;
+    }
+    res.json(result);
   } catch (e) {
     console.error("Rhys chat error:", e);
     res.status(500).json({ error: String(e) });

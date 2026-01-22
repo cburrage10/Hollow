@@ -215,6 +215,63 @@
       border-radius: 12px;
     }
 
+    /* Model selector and thinking toggle */
+    #modelSelect {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      color: #e8f4f8;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #modelSelect:hover { border-color: #4dd0e1; }
+    #modelSelect option { background: #1e3a5f; color: #e8f4f8; }
+
+    #thinkingToggle {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(77, 208, 225, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      color: #7a9bb3;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #thinkingToggle:hover { border-color: #4dd0e1; }
+    #thinkingToggle.active { background: rgba(77, 208, 225, 0.2); color: #4dd0e1; border-color: #4dd0e1; }
+
+    /* Thinking block display */
+    .thinking-block {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(77, 208, 225, 0.2);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .thinking-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: rgba(77, 208, 225, 0.1);
+      cursor: pointer;
+      font-size: 12px;
+      color: #7a9bb3;
+    }
+    .thinking-header:hover { background: rgba(77, 208, 225, 0.15); }
+    .thinking-toggle-icon { transition: transform 0.2s; }
+    .thinking-block.collapsed .thinking-toggle-icon { transform: rotate(-90deg); }
+    .thinking-content {
+      padding: 12px;
+      font-size: 13px;
+      color: #9ab3c7;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .thinking-block.collapsed .thinking-content { display: none; }
+
     .project-file-item {
       display: flex;
       justify-content: space-between;
@@ -667,6 +724,12 @@
         <h1>Rhys</h1>
       </div>
       <div class="header-right">
+        <select id="modelSelect" title="Select Claude model">
+          <option value="claude-sonnet-4-20250514">Sonnet 4</option>
+          <option value="claude-opus-4-20250514">Opus 4</option>
+          <option value="claude-haiku-3-5-20241022">Haiku 3.5</option>
+        </select>
+        <button id="thinkingToggle" title="Show Claude's thinking process">💭 Off</button>
         <span id="memoryCount">0 memories</span>
         <span id="fileCount">0 files</span>
         <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
@@ -861,6 +924,32 @@
   let voiceEnabled = localStorage.getItem('rhys_voice_enabled') === 'true';
   const voiceToggle = document.getElementById('voiceToggle');
   const ttsUsageEl = document.getElementById('ttsUsage');
+
+  // Model and thinking settings
+  const modelSelect = document.getElementById('modelSelect');
+  const thinkingToggle = document.getElementById('thinkingToggle');
+  let selectedModel = localStorage.getItem('rhys_model') || 'claude-sonnet-4-20250514';
+  let thinkingEnabled = localStorage.getItem('rhys_thinking') === 'true';
+
+  // Initialize model dropdown
+  modelSelect.value = selectedModel;
+  modelSelect.onchange = () => {
+    selectedModel = modelSelect.value;
+    localStorage.setItem('rhys_model', selectedModel);
+  };
+
+  // Initialize thinking toggle
+  function updateThinkingToggle() {
+    thinkingToggle.textContent = thinkingEnabled ? '💭 On' : '💭 Off';
+    thinkingToggle.classList.toggle('active', thinkingEnabled);
+  }
+  updateThinkingToggle();
+
+  thinkingToggle.onclick = () => {
+    thinkingEnabled = !thinkingEnabled;
+    localStorage.setItem('rhys_thinking', thinkingEnabled);
+    updateThinkingToggle();
+  };
 
   // Update voice toggle button state
   function updateVoiceToggle() {
@@ -1197,7 +1286,7 @@
   }
 
   // Expose globally for client.js voice transcription
-  window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null) {
+  window.addMessage = function(text, isUser, skipScroll = false, imageUrl = null, thinking = null) {
     const msg = document.createElement("div");
     msg.className = `message ${isUser ? 'user' : 'rhys'}`;
     msg.dataset.index = messageIndex++;
@@ -1205,10 +1294,31 @@
     const content = document.createElement("div");
     content.className = "content";
 
+    // Add thinking block if present (for Rhys messages)
+    if (!isUser && thinking) {
+      const thinkingBlock = document.createElement("div");
+      thinkingBlock.className = "thinking-block";
+
+      const thinkingHeader = document.createElement("div");
+      thinkingHeader.className = "thinking-header";
+      thinkingHeader.innerHTML = '<span>💭 Thinking</span><span class="thinking-toggle-icon">▼</span>';
+      thinkingHeader.onclick = () => thinkingBlock.classList.toggle('collapsed');
+
+      const thinkingContent = document.createElement("div");
+      thinkingContent.className = "thinking-content";
+      thinkingContent.textContent = thinking;
+
+      thinkingBlock.appendChild(thinkingHeader);
+      thinkingBlock.appendChild(thinkingContent);
+      content.appendChild(thinkingBlock);
+    }
+
     if (isUser) {
       content.textContent = text;
     } else {
-      content.innerHTML = parseMarkdown(text);
+      const responseDiv = document.createElement("div");
+      responseDiv.innerHTML = parseMarkdown(text);
+      content.appendChild(responseDiv);
     }
 
     if (imageUrl) {
@@ -1517,6 +1627,8 @@
         formData.append("file", stagedFile);
         formData.append("message", text);
         formData.append("sessionId", currentSessionId);
+        formData.append("model", selectedModel);
+        formData.append("thinking", thinkingEnabled);
 
         const r = await fetch(`${API_PREFIX}/upload`, { method: "POST", body: formData });
         data = await r.json();
@@ -1528,14 +1640,19 @@
         const r = await fetch(`${API_PREFIX}/chat`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ text, sessionId: currentSessionId })
+          body: JSON.stringify({
+            text,
+            sessionId: currentSessionId,
+            model: selectedModel,
+            thinking: thinkingEnabled
+          })
         });
         data = await r.json();
       }
 
       showTyping(false);
       const responseText = data.text || data.error || "(no reply)";
-      addMessage(responseText, false, false, data.image);
+      addMessage(responseText, false, false, data.image, data.thinking);
       updateMemoryCount();
 
       // Play TTS if voice is enabled
