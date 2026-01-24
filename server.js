@@ -322,6 +322,8 @@ async function executeOpieTool(toolName, toolInput) {
         toolInput.new_string,
         toolInput.commit_message
       );
+    case "opie_search_web":
+      return await tavilySearch(toolInput.query);
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
