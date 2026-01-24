@@ -292,6 +292,20 @@ const opieTools = [
       required: ["path", "old_string", "new_string", "commit_message"],
     },
   },
+  {
+    name: "opie_search_web",
+    description: "Search the web using Tavily API to find current information. Returns summarized results with sources.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "The search query to look up on the web",
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 // Execute an Opie tool
