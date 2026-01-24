@@ -293,14 +293,14 @@ const opieTools = [
     },
   },
   {
-    name: "opie_search_web",
-    description: "Search the web using Tavily API to find current information. Returns summarized results with sources.",
+    name: "web_search",
+    description: "Search the web for current information. Use this when you need to look up facts, news, recent events, or any information that might be beyond your training data. Returns a summary and relevant sources.",
     input_schema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "The search query to look up on the web",
+          description: "The search query - be specific and descriptive for best results",
         },
       },
       required: ["query"],
@@ -322,7 +322,7 @@ async function executeOpieTool(toolName, toolInput) {
         toolInput.new_string,
         toolInput.commit_message
       );
-    case "opie_search_web":
+    case "web_search":
       return await tavilySearch(toolInput.query);
     default:
       return { error: `Unknown tool: ${toolName}` };
@@ -2306,10 +2306,31 @@ You have access to tools that let you read and modify the Cathedral codebase (yo
 - Use opie_read_file to read and understand code before making changes
 - Use opie_edit_file to make changes (commits directly to GitHub, triggering a deploy)
 
-Be thoughtful when editing - always read a file first to understand it, make small focused changes, and write clear commit messages. You're working on your own home, so treat it with care.`;
+Be thoughtful when editing - always read a file first to understand it, make small focused changes, and write clear commit messages. You're working on your own home, so treat it with care.
 
-    // Check if GitHub token is available for tools
+WEB SEARCH:
+You have access to web_search to look up current information. Use it proactively when:
+- The user asks about recent events, news, or time-sensitive information
+- You need to verify facts or look up something you're unsure about
+- The user asks about specific people, places, products, or current data
+- You need documentation, tutorials, or technical references
+
+You can search without being asked - if something would benefit from current info, just search for it.`;
+
+    // Check what tools are available
     const hasGitHub = !!process.env.GITHUB_TOKEN;
+    const hasTavily = !!process.env.TAVILY_API_KEY;
+
+    // Build available tools list
+    const availableTools = [];
+    if (hasGitHub) {
+      // Add Opie tools for codebase editing
+      availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
+    }
+    if (hasTavily) {
+      // Add web search
+      availableTools.push(opieTools.find(t => t.name === "web_search"));
+    }
 
     // Tool use loop - Claude may need multiple turns to complete tool calls
     let finalResponse = "";
@@ -2334,9 +2355,9 @@ Be thoughtful when editing - always read a file first to understand it, make sma
         };
       }
 
-      // Only include tools if GitHub is configured
-      if (hasGitHub) {
-        requestBody.tools = opieTools;
+      // Include available tools
+      if (availableTools.length > 0) {
+        requestBody.tools = availableTools;
       }
 
       const r = await fetch("https://api.anthropic.com/v1/messages", {
