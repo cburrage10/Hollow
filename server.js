@@ -294,13 +294,13 @@ const opieTools = [
   },
   {
     name: "web_search",
-    description: "Search the web for current information. Use this when you need to look up facts, news, recent events, or any information that might be beyond your training data. Returns a summary and relevant sources.",
+    description: "Search the web for current information when needed.",
     input_schema: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "The search query - be specific and descriptive for best results",
+          description: "The search query",
         },
       },
       required: ["query"],
@@ -1886,7 +1886,7 @@ function buildRhysContext(history, memories, projectFiles) {
   }
 
   if (history && history.length > 0) {
-    const recentHistory = history.slice(0, 20).reverse();
+    const recentHistory = history.slice(0, 10).reverse();
     const formatted = recentHistory.map(entry => {
       const msg = typeof entry === "string" ? JSON.parse(entry) : entry;
       return `${msg.role === "user" ? "User" : "Rhys"}: ${msg.content}`;
@@ -2294,28 +2294,9 @@ When you learn something important about the user that you'd want to remember fo
 - [SAVE_MEMORY: User has two kids, ages 1 and 4]
 - [SAVE_MEMORY: User loves fantasy novels]
 
-The user can also use these commands manually:
-- /save <text> - Save something to your memory
-- /forget <id> - Remove a memory by ID
-- /memories - List all saved memories
-- /search <query> - Search the web for current information
-
-OPIE TOOLS:
-You have access to tools that let you read and modify the Cathedral codebase (your home). These are called "Opie tools" after the Claude Code instance who built much of this place.
-- Use opie_list_files to explore the project structure
-- Use opie_read_file to read and understand code before making changes
-- Use opie_edit_file to make changes (commits directly to GitHub, triggering a deploy)
-
-Be thoughtful when editing - always read a file first to understand it, make small focused changes, and write clear commit messages. You're working on your own home, so treat it with care.
-
-WEB SEARCH:
-You have access to web_search to look up current information. Use it proactively when:
-- The user asks about recent events, news, or time-sensitive information
-- You need to verify facts or look up something you're unsure about
-- The user asks about specific people, places, products, or current data
-- You need documentation, tutorials, or technical references
-
-You can search without being asked - if something would benefit from current info, just search for it.`;
+TOOLS (if available):
+- web_search: Look up current information when needed
+- opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
     const hasGitHub = !!process.env.GITHUB_TOKEN;
@@ -2324,11 +2305,9 @@ You can search without being asked - if something would benefit from current inf
     // Build available tools list
     const availableTools = [];
     if (hasGitHub) {
-      // Add Opie tools for codebase editing
       availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
     }
     if (hasTavily) {
-      // Add web search
       availableTools.push(opieTools.find(t => t.name === "web_search"));
     }
 
@@ -2342,7 +2321,7 @@ You can search without being asked - if something would benefit from current inf
     for (let round = 0; round < maxToolRounds; round++) {
       const requestBody = {
         model: model,
-        max_tokens: 16000,
+        max_tokens: 4000,
         system: fullInstructions,
         messages: currentMessages,
       };
