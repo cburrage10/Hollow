@@ -937,8 +937,34 @@
   // Model and thinking settings
   const claudeModelSelect = document.getElementById('claudeModelSelect');
   const thinkingToggle = document.getElementById('thinkingToggle');
-  let selectedModel = localStorage.getItem('rhys_model') || 'claude-sonnet-4-20250514';
+  let selectedModel = localStorage.getItem('rhys_model') || 'claude-sonnet-4-5-20250929';
   let thinkingEnabled = localStorage.getItem('rhys_thinking') === 'true';
+
+  // Session token tracking
+  const CONTEXT_LIMIT = 200000;
+  let sessionTokens = 0;
+  const tokenUsageEl = document.getElementById('tokenUsage');
+
+  function updateTokenDisplay() {
+    const formatted = sessionTokens >= 1000
+      ? `📊 ${(sessionTokens / 1000).toFixed(1)}k / 200k`
+      : `📊 ${sessionTokens} / 200k`;
+    tokenUsageEl.textContent = formatted;
+
+    const percent = (sessionTokens / CONTEXT_LIMIT) * 100;
+    if (percent >= 90) {
+      tokenUsageEl.style.color = '#ff4444';
+      tokenUsageEl.style.fontWeight = 'bold';
+    } else if (percent >= 75) {
+      tokenUsageEl.style.color = '#ffaa00';
+      tokenUsageEl.style.fontWeight = 'bold';
+    } else {
+      tokenUsageEl.style.color = '';
+      tokenUsageEl.style.fontWeight = '';
+    }
+
+    tokenUsageEl.title = `${sessionTokens.toLocaleString()} / ${CONTEXT_LIMIT.toLocaleString()} tokens (${percent.toFixed(1)}%)`;
+  }
 
   // Initialize model dropdown
   claudeModelSelect.value = selectedModel;
@@ -1504,6 +1530,8 @@
     sessions = data.sessions;
     currentSessionId = data.id;
     localStorage.setItem('rhys_session', currentSessionId);
+    sessionTokens = 0; // Reset token counter for new session
+    updateTokenDisplay();
     renderSessions();
     clearChat();
   }
@@ -1511,6 +1539,8 @@
   async function switchSession(id) {
     currentSessionId = id;
     localStorage.setItem('rhys_session', id);
+    sessionTokens = 0; // Reset token counter for new session
+    updateTokenDisplay();
     renderSessions();
     await loadChatHistory();
     sidebar.classList.remove('show');
@@ -1660,12 +1690,18 @@
       addMessage(responseText, false, false, data.image, data.thinking);
       updateMemoryCount();
 
-      // Update token usage display
+      // Update session token counter
       if (data.usage) {
-        const total = (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0);
-        const formatted = total >= 1000 ? `📊 ${(total / 1000).toFixed(1)}k` : `📊 ${total}`;
-        document.getElementById('tokenUsage').textContent = formatted;
-        document.getElementById('tokenUsage').title = `Input: ${data.usage.input_tokens?.toLocaleString() || 0} | Output: ${data.usage.output_tokens?.toLocaleString() || 0}`;
+        sessionTokens += (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0);
+        updateTokenDisplay();
+
+        // Warn if approaching limit
+        const percent = (sessionTokens / CONTEXT_LIMIT) * 100;
+        if (percent >= 90 && percent < 91) {
+          showToast('⚠️ 90% of context used! Consider starting a new chat soon.');
+        } else if (percent >= 75 && percent < 76) {
+          showToast('⚠️ 75% of context used');
+        }
       }
 
       // Play TTS if voice is enabled
@@ -1814,6 +1850,8 @@
   document.getElementById("clearBtn").onclick = async () => {
     if (!currentSessionId || !confirm("Clear this chat's history?")) return;
     await fetch(`${API_PREFIX}/sessions/${currentSessionId}/history`, { method: 'DELETE' });
+    sessionTokens = 0;
+    updateTokenDisplay();
     clearChat();
   };
 
