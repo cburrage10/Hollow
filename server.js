@@ -292,20 +292,6 @@ const opieTools = [
       required: ["path", "old_string", "new_string", "commit_message"],
     },
   },
-  {
-    name: "web_search",
-    description: "Search the web for current information when needed.",
-    input_schema: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "The search query",
-        },
-      },
-      required: ["query"],
-    },
-  },
 ];
 
 // Execute an Opie tool
@@ -322,8 +308,6 @@ async function executeOpieTool(toolName, toolInput) {
         toolInput.new_string,
         toolInput.commit_message
       );
-    case "web_search":
-      return await tavilySearch(toolInput.query);
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -2254,20 +2238,6 @@ app.post("/rhys/chat", async (req, res) => {
       return res.json({ text: formatRhysMemoriesList(memories) });
     }
 
-    // Handle /search command
-    if (text.startsWith("/search ")) {
-      const query = text.slice(8).trim();
-      if (!query) {
-        return res.json({ text: "Usage: /search <query>" });
-      }
-      const searchData = await tavilySearch(query);
-      const formatted = formatSearchResults(searchData);
-      await addToRhysHistory(sessionId, "user", `/search ${query}`);
-      await addToRhysHistory(sessionId, "assistant", formatted);
-      await touchRhysSession(sessionId);
-      return res.json({ text: formatted });
-    }
-
     // Regular chat using Anthropic Claude
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (!anthropicKey) {
@@ -2294,21 +2264,25 @@ When you learn something important about the user that you'd want to remember fo
 - [SAVE_MEMORY: User has two kids, ages 1 and 4]
 - [SAVE_MEMORY: User loves fantasy novels]
 
-TOOLS (if available):
-- web_search: Look up current information when needed
+TOOLS:
+- web_search: Search the web for current information. Use this when you need up-to-date info.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
     const hasGitHub = !!process.env.GITHUB_TOKEN;
-    const hasTavily = !!process.env.TAVILY_API_KEY;
 
     // Build available tools list
     const availableTools = [];
+
+    // Add native Claude web search tool
+    availableTools.push({
+      type: "web_search_20250305",
+      name: "web_search",
+      max_uses: 5
+    });
+
     if (hasGitHub) {
       availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
-    }
-    if (hasTavily) {
-      availableTools.push(opieTools.find(t => t.name === "web_search"));
     }
 
     // Tool use loop - Claude may need multiple turns to complete tool calls
