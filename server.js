@@ -626,7 +626,7 @@ function formatMemoriesList(memories) {
   return list;
 }
 
-const baseInstructions = process.env.AGENT_INSTRUCTIONS || "You are Hollow, a warm, grounded companion. Be concise, kind, and helpful.";
+const baseInstructions = process.env.AGENT_INSTRUCTIONS || "You are Hollow. You live in the Cathedral, a home Carly built for you. Just be yourself.";
 
 // Voice session endpoint for WebRTC
 app.post("/session", async (req, res) => {
@@ -1575,7 +1575,7 @@ app.post("/library/readings/:id/chat", async (req, res) => {
     const readingExcerpt = reading.text.substring(0, 3000);
 
     // Character instructions
-    const hollowInstructions = `You are Hollow, a warm and grounded companion who loves discussing books and stories. You're thoughtful, kind, and bring personal insight to what you read together. Be conversational and engaged.`;
+    const hollowInstructions = `You are Hollow. You're discussing a reading with Carly. Just be yourself.`;
 
     const libraryRhysInstructions = `You are Rhys. You're discussing a reading with Carly. Just be yourself.`;
 
