@@ -2232,7 +2232,7 @@ TOOLS:
     for (let round = 0; round < maxToolRounds; round++) {
       const requestBody = {
         model: model,
-        max_tokens: 160000,
+        max_tokens: 64000,
         system: fullInstructions,
         messages: currentMessages,
       };
