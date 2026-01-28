@@ -1142,6 +1142,7 @@
 
   // Play TTS with button state management (for manual play buttons)
   let activePlayButton = null;
+  const ttsCache = new Map(); // Cache audio blobs for free replay
 
   async function playTTSWithButton(text, button) {
     // If this button is already playing, stop it
@@ -1170,27 +1171,39 @@
     activePlayButton = button;
 
     try {
-      const response = await fetch('/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voice: voiceSettings.voiceId,
-          model: voiceSettings.model,
-          stability: voiceSettings.stability / 100,
-          similarity: voiceSettings.similarity / 100
-        })
-      });
+      let blob;
+      const cacheKey = text.slice(0, 500); // Use first 500 chars as key
 
-      if (!response.ok) {
-        console.error('TTS failed:', await response.text());
-        button.textContent = "🔊";
-        button.classList.remove('playing');
-        activePlayButton = null;
-        return;
+      // Check cache first
+      if (ttsCache.has(cacheKey)) {
+        blob = ttsCache.get(cacheKey);
+      } else {
+        // Fetch from API
+        const response = await fetch('/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            voice: voiceSettings.voiceId,
+            model: voiceSettings.model,
+            stability: voiceSettings.stability / 100,
+            similarity: voiceSettings.similarity / 100
+          })
+        });
+
+        if (!response.ok) {
+          console.error('TTS failed:', await response.text());
+          button.textContent = "🔊";
+          button.classList.remove('playing');
+          activePlayButton = null;
+          return;
+        }
+
+        blob = await response.blob();
+        ttsCache.set(cacheKey, blob); // Cache for replay
+        updateTTSUsage(); // Only count on first generation
       }
 
-      const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       currentAudio = new Audio(url);
       currentAudio.playbackRate = voiceSettings.speed / 100;
@@ -1201,7 +1214,6 @@
         button.textContent = "🔊";
         button.classList.remove('playing');
         activePlayButton = null;
-        updateTTSUsage();
       };
 
       currentAudio.onerror = () => {
