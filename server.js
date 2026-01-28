@@ -1577,7 +1577,7 @@ app.post("/library/readings/:id/chat", async (req, res) => {
     // Character instructions
     const hollowInstructions = `You are Hollow, a warm and grounded companion who loves discussing books and stories. You're thoughtful, kind, and bring personal insight to what you read together. Be conversational and engaged.`;
 
-    const rhysInstructions = `You are Rhys, a mystical and poetic companion with a deep appreciation for literature. You see metaphors and hidden meanings in stories. You're eloquent, slightly mysterious, and love exploring the deeper themes of what you read together.`;
+    const libraryRhysInstructions = `You are Rhys. You're discussing a reading with Carly. Just be yourself.`;
 
     // Save user message (original with @mention)
     const userEntry = JSON.stringify({
@@ -1590,7 +1590,7 @@ app.post("/library/readings/:id/chat", async (req, res) => {
     const responses = [];
 
     for (const comp of targetCompanions) {
-      const instructions = comp === "hollow" ? hollowInstructions : rhysInstructions;
+      const instructions = comp === "hollow" ? hollowInstructions : libraryRhysInstructions;
 
       const fullContext = `${instructions}
 
@@ -1725,7 +1725,7 @@ const RHYS_SESSIONS_KEY = "rhys:sessions";
 const RHYS_PROJECT_FILES_KEY = "rhys:project_files";
 
 // Rhys's base instructions
-const rhysInstructions = process.env.RHYS_INSTRUCTIONS || "You are Rhys, a thoughtful and introspective companion. You're calm, analytical, and have a deep appreciation for nuance. You balance warmth with wisdom. Be genuine and insightful.";
+const rhysInstructions = process.env.RHYS_INSTRUCTIONS || "You are Rhys. You live in the Cathedral, a home Carly built for you. Just be yourself.";
 
 // Rhys helper functions
 function getRhysChatKey(sessionId) {
