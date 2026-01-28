@@ -2321,7 +2321,7 @@ TOOLS (if available):
     for (let round = 0; round < maxToolRounds; round++) {
       const requestBody = {
         model: model,
-        max_tokens: 4000,
+        max_tokens: 160000,
         system: fullInstructions,
         messages: currentMessages,
       };
