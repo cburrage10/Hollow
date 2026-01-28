@@ -910,6 +910,8 @@ app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
+    const model = req.body?.model || "gpt-4.1-mini";
+    const reasoning = req.body?.reasoning || "none";
 
     if (!text) return res.json({ text: "" });
     if (!sessionId) return res.status(400).json({ error: "Session ID required" });
@@ -1023,18 +1025,26 @@ The user can also use these commands manually:
 TOOLS:
 - web_search: Search the web for current information. Use this when you need up-to-date info.`;
 
+    // Build request body
+    const requestBody = {
+      model: model,
+      instructions: fullInstructions,
+      input: text,
+      tools: [{ type: "web_search" }],
+    };
+
+    // Add reasoning effort for GPT-5 models
+    if (model.startsWith("gpt-5") && reasoning !== "none") {
+      requestBody.reasoning = { effort: reasoning };
+    }
+
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        instructions: fullInstructions,
-        input: text,
-        tools: [{ type: "web_search" }],
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const raw = await r.text();

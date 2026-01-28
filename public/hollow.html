@@ -205,6 +205,19 @@
       border-radius: 12px;
     }
 
+    /* Model selector and reasoning toggle */
+    #openaiModelSelect, #reasoningSelect {
+      padding: 6px 10px;
+      font-size: 12px;
+      border: 1px solid rgba(255, 165, 0, 0.3);
+      background: rgba(0, 0, 0, 0.3);
+      color: #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #openaiModelSelect:hover, #reasoningSelect:hover { border-color: #ffa500; }
+    #openaiModelSelect option, #reasoningSelect option { background: #1a1a1a; color: #e0e0e0; }
+
     .project-file-item {
       display: flex;
       justify-content: space-between;
@@ -658,6 +671,18 @@
         <div id="status">Disconnected</div>
       </div>
       <div class="header-right">
+        <select id="openaiModelSelect" title="Select OpenAI model">
+          <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+          <option value="gpt-4.1">GPT-4.1</option>
+          <option value="gpt-5.2">GPT-5.2</option>
+          <option value="gpt-5-nano">GPT-5 Nano</option>
+        </select>
+        <select id="reasoningSelect" title="Reasoning effort (GPT-5 models)">
+          <option value="none">Reason: Off</option>
+          <option value="low">Reason: Low</option>
+          <option value="medium">Reason: Med</option>
+          <option value="high">Reason: High</option>
+        </select>
         <span id="memoryCount">0 memories</span>
         <span id="fileCount">0 files</span>
         <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
@@ -770,6 +795,37 @@
   // State
   let currentSessionId = urlSessionId || localStorage.getItem('hollow_session') || null;
   let sessions = [];
+
+  // Model and reasoning settings
+  const openaiModelSelect = document.getElementById('openaiModelSelect');
+  const reasoningSelect = document.getElementById('reasoningSelect');
+  let selectedModel = localStorage.getItem('hollow_model') || 'gpt-4.1-mini';
+  let selectedReasoning = localStorage.getItem('hollow_reasoning') || 'none';
+
+  // Initialize model dropdown
+  openaiModelSelect.value = selectedModel;
+  openaiModelSelect.onchange = () => {
+    selectedModel = openaiModelSelect.value;
+    localStorage.setItem('hollow_model', selectedModel);
+    updateReasoningVisibility();
+  };
+
+  // Initialize reasoning dropdown
+  reasoningSelect.value = selectedReasoning;
+  reasoningSelect.onchange = () => {
+    selectedReasoning = reasoningSelect.value;
+    localStorage.setItem('hollow_reasoning', selectedReasoning);
+  };
+
+  // Only show reasoning for GPT-5 models
+  function updateReasoningVisibility() {
+    if (selectedModel.startsWith('gpt-5')) {
+      reasoningSelect.style.display = '';
+    } else {
+      reasoningSelect.style.display = 'none';
+    }
+  }
+  updateReasoningVisibility();
 
   const chatContainer = document.getElementById("chatContainer");
   const msgInput = document.getElementById("msg");
@@ -1199,7 +1255,12 @@
         const r = await fetch("/chat", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ text, sessionId: currentSessionId })
+          body: JSON.stringify({
+            text,
+            sessionId: currentSessionId,
+            model: selectedModel,
+            reasoning: selectedModel.startsWith('gpt-5') ? selectedReasoning : undefined
+          })
         });
         data = await r.json();
       }
