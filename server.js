@@ -35,69 +35,6 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
 
-// Tavily search function
-async function tavilySearch(query) {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) {
-    return { error: "Search not configured (missing API key)" };
-  }
-
-  try {
-    const response = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query: query,
-        search_depth: "basic",
-        include_answer: true,
-        include_raw_content: false,
-        max_results: 5,
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("Tavily error:", err);
-      return { error: "Search failed" };
-    }
-
-    const data = await response.json();
-    return {
-      answer: data.answer,
-      results: data.results?.map(r => ({
-        title: r.title,
-        url: r.url,
-        snippet: r.content?.slice(0, 300),
-      })) || [],
-    };
-  } catch (e) {
-    console.error("Tavily search error:", e);
-    return { error: String(e.message || e) };
-  }
-}
-
-// Format search results for display
-function formatSearchResults(searchData) {
-  if (searchData.error) {
-    return `Search error: ${searchData.error}`;
-  }
-
-  let output = "";
-  if (searchData.answer) {
-    output += `**Summary:** ${searchData.answer}\n\n`;
-  }
-  if (searchData.results?.length) {
-    output += "**Sources:**\n";
-    for (const r of searchData.results) {
-      output += `- [${r.title}](${r.url})\n  ${r.snippet}...\n\n`;
-    }
-  }
-  return output || "No results found.";
-}
-
 // === Opie Tools (GitHub API for Rhys to edit Cathedral) ===
 const GITHUB_OWNER = "cburrage10";
 const GITHUB_REPO = "Hollow";
@@ -1007,20 +944,6 @@ app.post("/chat", async (req, res) => {
       return res.json({ text: formatMemoriesList(memories) });
     }
 
-    // Handle /search command
-    if (text.startsWith("/search ")) {
-      const query = text.slice(8).trim();
-      if (!query) {
-        return res.json({ text: "Usage: /search <query>" });
-      }
-      const searchData = await tavilySearch(query);
-      const formatted = formatSearchResults(searchData);
-      await addToHistory(sessionId, "user", `/search ${query}`);
-      await addToHistory(sessionId, "assistant", formatted);
-      await touchSession(sessionId);
-      return res.json({ text: formatted });
-    }
-
     // Handle /imagine command
     if (text.startsWith("/imagine ")) {
       const prompt = text.slice(9).trim();
@@ -1096,7 +1019,9 @@ The user can also use these commands manually:
 - /forget <id> - Remove a memory by ID
 - /memories - List all saved memories
 - /imagine <prompt> - Generate an image
-- /search <query> - Search the web for current information`;
+
+TOOLS:
+- web_search: Search the web for current information. Use this when you need up-to-date info.`;
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -1108,6 +1033,7 @@ The user can also use these commands manually:
         model: "gpt-4.1-mini",
         instructions: fullInstructions,
         input: text,
+        tools: [{ type: "web_search" }],
       }),
     });
 
