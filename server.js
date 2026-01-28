@@ -2224,6 +2224,7 @@ TOOLS:
     // Tool use loop - Claude may need multiple turns to complete tool calls
     let finalResponse = "";
     let thinkingContent = "";
+    let totalUsage = { input_tokens: 0, output_tokens: 0 };
     // Start with just the current message - history is already in system context
     let currentMessages = [{ role: "user", content: text }];
     const maxToolRounds = 10; // Safety limit
@@ -2266,6 +2267,12 @@ TOOLS:
       }
 
       const data = JSON.parse(raw);
+
+      // Track token usage
+      if (data.usage) {
+        totalUsage.input_tokens += data.usage.input_tokens || 0;
+        totalUsage.output_tokens += data.usage.output_tokens || 0;
+      }
 
       // Check if Claude wants to use tools
       const toolUseBlocks = data.content?.filter((c) => c.type === "tool_use") || [];
@@ -2327,7 +2334,7 @@ TOOLS:
     await addToRhysHistory(sessionId, "assistant", response);
     await touchRhysSession(sessionId);
 
-    const result = { text: response };
+    const result = { text: response, usage: totalUsage };
     if (thinkingContent) {
       result.thinking = thinkingContent;
     }
