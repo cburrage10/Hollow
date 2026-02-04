@@ -206,7 +206,7 @@
     }
 
     /* Model selector and reasoning toggle */
-    #openaiModelSelect, #reasoningSelect {
+    #openaiModelSelect, #reasoningSelect, #ttsModelSelect, #ttsVoiceSelect {
       padding: 6px 10px;
       font-size: 12px;
       border: 1px solid rgba(255, 165, 0, 0.3);
@@ -215,8 +215,21 @@
       border-radius: 6px;
       cursor: pointer;
     }
-    #openaiModelSelect:hover, #reasoningSelect:hover { border-color: #ffa500; }
-    #openaiModelSelect option, #reasoningSelect option { background: #1a1a1a; color: #e0e0e0; }
+    #openaiModelSelect:hover, #reasoningSelect:hover, #ttsModelSelect:hover, #ttsVoiceSelect:hover { border-color: #ffa500; }
+    #openaiModelSelect option, #reasoningSelect option, #ttsModelSelect option, #ttsVoiceSelect option { background: #1a1a1a; color: #e0e0e0; }
+
+    /* Play button for TTS */
+    .play-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .play-btn:hover { opacity: 1; }
+    .play-btn.playing { opacity: 1; color: #ffa500; }
 
     .project-file-item {
       display: flex;
@@ -683,6 +696,26 @@
           <option value="medium">Reason: Med</option>
           <option value="high">Reason: High</option>
         </select>
+        <select id="ttsModelSelect" title="TTS Model">
+          <option value="tts-1">TTS-1 (Fast)</option>
+          <option value="tts-1-hd">TTS-1-HD</option>
+          <option value="gpt-4o-mini-tts">GPT-4o Mini TTS</option>
+        </select>
+        <select id="ttsVoiceSelect" title="TTS Voice">
+          <option value="onyx">Onyx</option>
+          <option value="alloy">Alloy</option>
+          <option value="ash">Ash</option>
+          <option value="ballad">Ballad</option>
+          <option value="coral">Coral</option>
+          <option value="echo">Echo</option>
+          <option value="fable">Fable</option>
+          <option value="nova">Nova</option>
+          <option value="sage">Sage</option>
+          <option value="shimmer">Shimmer</option>
+          <option value="verse">Verse</option>
+          <option value="marin">Marin</option>
+          <option value="cedar">Cedar</option>
+        </select>
         <span id="memoryCount">0 memories</span>
         <span id="fileCount">0 files</span>
         <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
@@ -826,6 +859,110 @@
     }
   }
   updateReasoningVisibility();
+
+  // TTS settings
+  const ttsModelSelect = document.getElementById('ttsModelSelect');
+  const ttsVoiceSelect = document.getElementById('ttsVoiceSelect');
+  let selectedTTSModel = localStorage.getItem('hollow_tts_model') || 'tts-1';
+  let selectedTTSVoice = localStorage.getItem('hollow_tts_voice') || 'onyx';
+
+  ttsModelSelect.value = selectedTTSModel;
+  ttsModelSelect.onchange = () => {
+    selectedTTSModel = ttsModelSelect.value;
+    localStorage.setItem('hollow_tts_model', selectedTTSModel);
+  };
+
+  ttsVoiceSelect.value = selectedTTSVoice;
+  ttsVoiceSelect.onchange = () => {
+    selectedTTSVoice = ttsVoiceSelect.value;
+    localStorage.setItem('hollow_tts_voice', selectedTTSVoice);
+  };
+
+  // TTS playback
+  let currentAudio = null;
+  let activePlayButton = null;
+  const ttsCache = new Map();
+
+  async function playTTS(text, button) {
+    // If this button is already playing, stop it
+    if (activePlayButton === button && currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+      button.textContent = "🔊";
+      button.classList.remove('playing');
+      activePlayButton = null;
+      return;
+    }
+
+    // Stop any other playing audio
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+    if (activePlayButton) {
+      activePlayButton.textContent = "🔊";
+      activePlayButton.classList.remove('playing');
+    }
+
+    button.textContent = "⏹️";
+    button.classList.add('playing');
+    activePlayButton = button;
+
+    try {
+      let blob;
+      const cacheKey = text.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
+
+      if (ttsCache.has(cacheKey)) {
+        blob = ttsCache.get(cacheKey);
+      } else {
+        const response = await fetch('/openai-tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            voice: selectedTTSVoice,
+            model: selectedTTSModel,
+            instructions: selectedTTSModel === 'gpt-4o-mini-tts' ? 'Speak warmly and expressively' : undefined
+          })
+        });
+
+        if (!response.ok) {
+          console.error('TTS failed:', await response.text());
+          button.textContent = "🔊";
+          button.classList.remove('playing');
+          activePlayButton = null;
+          return;
+        }
+
+        blob = await response.blob();
+        ttsCache.set(cacheKey, blob);
+      }
+
+      const url = URL.createObjectURL(blob);
+      currentAudio = new Audio(url);
+
+      currentAudio.onended = () => {
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+        button.textContent = "🔊";
+        button.classList.remove('playing');
+        activePlayButton = null;
+      };
+
+      currentAudio.onerror = () => {
+        button.textContent = "🔊";
+        button.classList.remove('playing');
+        activePlayButton = null;
+      };
+
+      currentAudio.play();
+    } catch (e) {
+      console.error('TTS error:', e);
+      button.textContent = "🔊";
+      button.classList.remove('playing');
+      activePlayButton = null;
+    }
+  }
 
   const chatContainer = document.getElementById("chatContainer");
   const msgInput = document.getElementById("msg");
@@ -972,7 +1109,7 @@
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
 
-    // Add edit button for user messages
+    // Add edit button for user messages, play button for Hollow's messages
     if (isUser) {
       const editBtn = document.createElement("button");
       editBtn.className = "edit-btn";
@@ -980,6 +1117,13 @@
       editBtn.title = "Edit & resend";
       editBtn.onclick = () => editMessage(msg, text);
       footer.appendChild(editBtn);
+    } else {
+      const playBtn = document.createElement("button");
+      playBtn.className = "play-btn";
+      playBtn.textContent = "🔊";
+      playBtn.title = "Read aloud";
+      playBtn.onclick = () => playTTS(text, playBtn);
+      footer.appendChild(playBtn);
     }
 
     msg.appendChild(content);
@@ -1184,7 +1328,7 @@
     footer.appendChild(ts);
     footer.appendChild(copyBtn);
 
-    // Add edit button for user messages
+    // Add edit button for user messages, play button for Hollow's messages
     if (isUser) {
       const editBtn = document.createElement("button");
       editBtn.className = "edit-btn";
@@ -1192,6 +1336,13 @@
       editBtn.title = "Edit & resend";
       editBtn.onclick = () => editMessage(msg, text);
       footer.appendChild(editBtn);
+    } else {
+      const playBtn = document.createElement("button");
+      playBtn.className = "play-btn";
+      playBtn.textContent = "🔊";
+      playBtn.title = "Read aloud";
+      playBtn.onclick = () => playTTS(text, playBtn);
+      footer.appendChild(playBtn);
     }
 
     msg.appendChild(content);
