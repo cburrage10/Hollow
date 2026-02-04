@@ -1412,11 +1412,16 @@
 
     let fullText = "";
 
+    // Strip memory tags from display
+    function cleanMemoryTags(text) {
+      return text.replace(/\[SAVE_MEMORY:\s*[^\]]+\]/g, '').trim();
+    }
+
     return {
       element: msg,
       update: (delta) => {
         fullText += delta;
-        content.innerHTML = parseMarkdown(fullText);
+        content.innerHTML = parseMarkdown(cleanMemoryTags(fullText));
         chatContainer.scrollTop = chatContainer.scrollHeight;
       },
       finalize: (text) => {
@@ -1567,14 +1572,55 @@
     sendBtn.disabled = false;
   };
 
-  // Queue for sentence-by-sentence TTS playback
-  const ttsQueue = [];
+  // Queue for sentence-by-sentence TTS playback with pre-fetching
+  const ttsQueue = []; // Queue of sentences to play
+  const ttsAudioQueue = []; // Queue of pre-fetched audio blobs
   let isPlayingQueue = false;
+  let isFetchingNext = false;
 
   async function playSentenceTTS(sentence) {
-    ttsQueue.push(sentence);
+    // Strip memory tags before playing
+    const cleanSentence = sentence.replace(/\[SAVE_MEMORY:\s*[^\]]+\]/g, '').trim();
+    if (!cleanSentence) return;
+
+    ttsQueue.push(cleanSentence);
+
+    // Start pre-fetching audio for this sentence
+    prefetchAudio(cleanSentence);
+
     if (!isPlayingQueue) {
       playNextInQueue();
+    }
+  }
+
+  async function prefetchAudio(sentence) {
+    const cacheKey = sentence.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
+
+    // Already cached
+    if (ttsCache.has(cacheKey)) {
+      ttsAudioQueue.push({ sentence, blob: ttsCache.get(cacheKey) });
+      return;
+    }
+
+    try {
+      const response = await fetch('/openai-tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: sentence,
+          voice: selectedTTSVoice,
+          model: selectedTTSModel,
+          instructions: selectedTTSModel === 'gpt-4o-mini-tts' ? 'Speak warmly and expressively' : undefined
+        })
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        ttsCache.set(cacheKey, blob);
+        ttsAudioQueue.push({ sentence, blob });
+      }
+    } catch (e) {
+      console.error('Prefetch TTS error:', e);
     }
   }
 
@@ -1586,51 +1632,58 @@
 
     isPlayingQueue = true;
     const sentence = ttsQueue.shift();
+    const cacheKey = sentence.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
 
-    try {
-      const cacheKey = sentence.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
-      let blob;
+    // Wait for audio to be ready (either from cache or prefetch)
+    let blob = ttsCache.get(cacheKey);
+    let waitAttempts = 0;
 
-      if (ttsCache.has(cacheKey)) {
-        blob = ttsCache.get(cacheKey);
-      } else {
+    while (!blob && waitAttempts < 50) {
+      await new Promise(r => setTimeout(r, 100));
+      blob = ttsCache.get(cacheKey);
+      waitAttempts++;
+    }
+
+    if (!blob) {
+      // Fallback: fetch directly if prefetch failed
+      try {
         const response = await fetch('/openai-tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: sentence,
             voice: selectedTTSVoice,
-            model: selectedTTSModel,
-            instructions: selectedTTSModel === 'gpt-4o-mini-tts' ? 'Speak warmly and expressively' : undefined
+            model: selectedTTSModel
           })
         });
-
-        if (!response.ok) {
-          playNextInQueue();
-          return;
+        if (response.ok) {
+          blob = await response.blob();
+          ttsCache.set(cacheKey, blob);
         }
-
-        blob = await response.blob();
-        ttsCache.set(cacheKey, blob);
+      } catch (e) {
+        playNextInQueue();
+        return;
       }
-
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        playNextInQueue();
-      };
-
-      audio.onerror = () => {
-        playNextInQueue();
-      };
-
-      audio.play();
-    } catch (e) {
-      console.error('Sentence TTS error:', e);
-      playNextInQueue();
     }
+
+    if (!blob) {
+      playNextInQueue();
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+
+    audio.onended = () => {
+      URL.revokeObjectURL(url);
+      playNextInQueue();
+    };
+
+    audio.onerror = () => {
+      playNextInQueue();
+    };
+
+    audio.play();
   }
 
   // Share button
