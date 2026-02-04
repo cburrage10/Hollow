@@ -2630,6 +2630,48 @@ app.post("/stt", upload.single("audio"), async (req, res) => {
   }
 });
 
+// OpenAI Whisper STT endpoint (for Hollow)
+app.post("/openai-stt", upload.single("audio"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No audio file provided" });
+    }
+
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      return res.status(500).json({ error: "OpenAI API key not configured" });
+    }
+
+    // Use native Node.js FormData
+    const formData = new FormData();
+    const audioBlob = new Blob([req.file.buffer], { type: req.file.mimetype || "audio/webm" });
+    formData.append("file", audioBlob, "audio.webm");
+    formData.append("model", "whisper-1");
+
+    console.log("OpenAI STT request - file size:", req.file.size, "mimetype:", req.file.mimetype);
+
+    const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      console.error("OpenAI Whisper STT error:", err);
+      return res.status(response.status).json({ error: err });
+    }
+
+    const data = await response.json();
+    res.json({ text: data.text || "" });
+  } catch (e) {
+    console.error("OpenAI STT error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });

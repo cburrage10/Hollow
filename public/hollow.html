@@ -1417,8 +1417,14 @@
       }
 
       showTyping(false);
-      addMessage(data.text || data.error || "(no reply)", false, false, data.image);
+      const responseText = data.text || data.error || "(no reply)";
+      addMessage(responseText, false, false, data.image);
       updateMemoryCount();
+
+      // Auto-play response if in walkie-talkie mode
+      if (walkieTalkieMode && data.text) {
+        autoPlayResponse(data.text);
+      }
     } catch (err) {
       showTyping(false);
       addMessage("Error: " + err.message, false);
@@ -1474,34 +1480,115 @@
     msgInput.focus();
   };
 
-  // Voice input
+  // Voice input using OpenAI Whisper
   const voiceBtn = document.getElementById("voiceBtn");
-  let recognition = null;
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
 
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
+  // Walkie-talkie mode: auto-play responses after sending voice
+  let walkieTalkieMode = false;
 
-    recognition.onresult = (e) => {
-      msgInput.value += e.results[0][0].transcript;
-      msgInput.dispatchEvent(new Event('input'));
-    };
+  voiceBtn.onclick = async () => {
+    if (isRecording) {
+      // Stop recording
+      mediaRecorder.stop();
+      voiceBtn.classList.remove('recording');
+      isRecording = false;
+    } else {
+      // Start recording
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        audioChunks = [];
 
-    recognition.onend = () => voiceBtn.classList.remove('recording');
-    recognition.onerror = () => voiceBtn.classList.remove('recording');
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
 
-    voiceBtn.onclick = () => {
-      if (voiceBtn.classList.contains('recording')) {
-        recognition.stop();
-      } else {
-        recognition.start();
+        mediaRecorder.onstop = async () => {
+          // Stop all tracks
+          stream.getTracks().forEach(track => track.stop());
+
+          if (audioChunks.length === 0) return;
+
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+          // Show transcribing indicator
+          voiceBtn.textContent = '...';
+
+          try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.webm');
+
+            const response = await fetch('/openai-stt', {
+              method: 'POST',
+              body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.text) {
+              msgInput.value = data.text;
+              msgInput.dispatchEvent(new Event('input'));
+
+              // Enable walkie-talkie mode and auto-send
+              walkieTalkieMode = true;
+              sendBtn.click();
+            }
+          } catch (err) {
+            console.error('STT error:', err);
+            showToast('Voice transcription failed');
+          }
+
+          voiceBtn.textContent = '🎤';
+        };
+
+        mediaRecorder.start();
         voiceBtn.classList.add('recording');
+        isRecording = true;
+      } catch (err) {
+        console.error('Microphone error:', err);
+        showToast('Could not access microphone');
       }
-    };
-  } else {
-    voiceBtn.style.display = 'none';
+    }
+  };
+
+  // Auto-play TTS for walkie-talkie mode
+  async function autoPlayResponse(text) {
+    if (!walkieTalkieMode) return;
+    walkieTalkieMode = false; // Reset after playing
+
+    try {
+      let blob;
+      const cacheKey = text.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
+
+      if (ttsCache.has(cacheKey)) {
+        blob = ttsCache.get(cacheKey);
+      } else {
+        const response = await fetch('/openai-tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            voice: selectedTTSVoice,
+            model: selectedTTSModel,
+            instructions: selectedTTSModel === 'gpt-4o-mini-tts' ? 'Speak warmly and expressively' : undefined
+          })
+        });
+
+        if (!response.ok) return;
+        blob = await response.blob();
+        ttsCache.set(cacheKey, blob);
+      }
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.play();
+    } catch (e) {
+      console.error('Auto-play TTS error:', e);
+    }
   }
 
   // Clear chat
