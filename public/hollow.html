@@ -1491,7 +1491,6 @@
 
         const streamingMsg = createStreamingMessage();
         let sentenceBuffer = "";
-        let playedSentences = 0;
 
         const response = await fetch("/chat-stream", {
           method: "POST",
@@ -1525,17 +1524,14 @@
                   // For walkie-talkie mode: detect complete sentences and play them
                   if (walkieTalkieMode) {
                     sentenceBuffer += data.delta;
-                    // Check for sentence endings (. ! ?)
-                    const sentences = sentenceBuffer.split(/(?<=[.!?])\s+/);
-                    if (sentences.length > 1) {
-                      // Play all complete sentences except the last (potentially incomplete) one
-                      for (let i = 0; i < sentences.length - 1; i++) {
-                        if (i >= playedSentences && sentences[i].trim()) {
-                          playSentenceTTS(sentences[i].trim());
-                          playedSentences++;
-                        }
+                    // Keep extracting complete sentences until none remain
+                    let sentenceMatch;
+                    while ((sentenceMatch = sentenceBuffer.match(/^(.*?[.!?])\s+(.*)$/s))) {
+                      const completeSentence = sentenceMatch[1].trim();
+                      sentenceBuffer = sentenceMatch[2]; // Keep the rest
+                      if (completeSentence) {
+                        playSentenceTTS(completeSentence);
                       }
-                      sentenceBuffer = sentences[sentences.length - 1];
                     }
                   }
                 }
@@ -1543,7 +1539,7 @@
                 if (data.done) {
                   streamingMsg.finalize(data.full || streamingMsg.getText());
 
-                  // Play any remaining sentence in walkie-talkie mode
+                  // Play any remaining text in walkie-talkie mode
                   if (walkieTalkieMode && sentenceBuffer.trim()) {
                     playSentenceTTS(sentenceBuffer.trim());
                   }
