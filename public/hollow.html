@@ -1373,6 +1373,62 @@
 
   document.getElementById('removeFile').onclick = clearStagedFile;
 
+  // Create a streaming message bubble and return update function
+  function createStreamingMessage() {
+    const msg = document.createElement("div");
+    msg.className = "message hollow";
+    msg.dataset.index = messageIndex++;
+
+    const content = document.createElement("div");
+    content.className = "content";
+    content.innerHTML = '<p></p>';
+
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+
+    const timestamp = document.createElement("span");
+    timestamp.className = "timestamp";
+    timestamp.textContent = formatTime(new Date());
+
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+
+    const playBtn = document.createElement("button");
+    playBtn.className = "play-btn";
+    playBtn.textContent = "🔊";
+    playBtn.title = "Read aloud";
+
+    footer.appendChild(timestamp);
+    footer.appendChild(copyBtn);
+    footer.appendChild(playBtn);
+
+    msg.appendChild(content);
+    msg.appendChild(footer);
+
+    chatContainer.insertBefore(msg, typingIndicator);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    let fullText = "";
+
+    return {
+      element: msg,
+      update: (delta) => {
+        fullText += delta;
+        content.innerHTML = parseMarkdown(fullText);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      },
+      finalize: (text) => {
+        fullText = text;
+        content.innerHTML = parseMarkdown(fullText);
+        copyBtn.onclick = () => copyToClipboard(fullText);
+        playBtn.onclick = () => playTTS(fullText, playBtn);
+      },
+      getText: () => fullText
+    };
+  }
+
   // Send message (handles both text and file+text)
   sendBtn.onclick = async () => {
     const text = msgInput.value.trim();
@@ -1381,13 +1437,13 @@
     msgInput.value = "";
     msgInput.style.height = 'auto';
     sendBtn.disabled = true;
-    showTyping(true);
 
     try {
       let data;
 
       if (stagedFile) {
-        // Send with file
+        // Send with file (non-streaming)
+        showTyping(true);
         const displayMsg = text ? `[${stagedFile.name}] ${text}` : `[${stagedFile.name}]`;
         addMessage(displayMsg, true);
 
@@ -1399,8 +1455,16 @@
         const r = await fetch("/upload", { method: "POST", body: formData });
         data = await r.json();
         clearStagedFile();
-      } else {
-        // Text only
+        showTyping(false);
+        const responseText = data.text || data.error || "(no reply)";
+        addMessage(responseText, false, false, data.image);
+
+        if (walkieTalkieMode && data.text) {
+          autoPlayResponse(data.text);
+        }
+      } else if (text.startsWith('/')) {
+        // Commands go through non-streaming endpoint
+        showTyping(true);
         addMessage(text, true);
 
         const r = await fetch("/chat", {
@@ -1414,17 +1478,91 @@
           })
         });
         data = await r.json();
+        showTyping(false);
+        const responseText = data.text || data.error || "(no reply)";
+        addMessage(responseText, false, false, data.image);
+
+        if (walkieTalkieMode && data.text) {
+          autoPlayResponse(data.text);
+        }
+      } else {
+        // Regular text - use streaming
+        addMessage(text, true);
+
+        const streamingMsg = createStreamingMessage();
+        let sentenceBuffer = "";
+        let playedSentences = 0;
+
+        const response = await fetch("/chat-stream", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            text,
+            sessionId: currentSessionId,
+            model: selectedModel,
+            reasoning: selectedModel.startsWith('gpt-5') ? selectedReasoning : undefined
+          })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.delta) {
+                  streamingMsg.update(data.delta);
+
+                  // For walkie-talkie mode: detect complete sentences and play them
+                  if (walkieTalkieMode) {
+                    sentenceBuffer += data.delta;
+                    // Check for sentence endings (. ! ?)
+                    const sentences = sentenceBuffer.split(/(?<=[.!?])\s+/);
+                    if (sentences.length > 1) {
+                      // Play all complete sentences except the last (potentially incomplete) one
+                      for (let i = 0; i < sentences.length - 1; i++) {
+                        if (i >= playedSentences && sentences[i].trim()) {
+                          playSentenceTTS(sentences[i].trim());
+                          playedSentences++;
+                        }
+                      }
+                      sentenceBuffer = sentences[sentences.length - 1];
+                    }
+                  }
+                }
+
+                if (data.done) {
+                  streamingMsg.finalize(data.full || streamingMsg.getText());
+
+                  // Play any remaining sentence in walkie-talkie mode
+                  if (walkieTalkieMode && sentenceBuffer.trim()) {
+                    playSentenceTTS(sentenceBuffer.trim());
+                  }
+
+                  walkieTalkieMode = false; // Reset after response completes
+                }
+
+                if (data.error) {
+                  streamingMsg.finalize("Error: " + data.error);
+                }
+              } catch (e) {
+                // Skip unparseable lines
+              }
+            }
+          }
+        }
       }
 
-      showTyping(false);
-      const responseText = data.text || data.error || "(no reply)";
-      addMessage(responseText, false, false, data.image);
       updateMemoryCount();
-
-      // Auto-play response if in walkie-talkie mode
-      if (walkieTalkieMode && data.text) {
-        autoPlayResponse(data.text);
-      }
     } catch (err) {
       showTyping(false);
       addMessage("Error: " + err.message, false);
@@ -1432,6 +1570,72 @@
 
     sendBtn.disabled = false;
   };
+
+  // Queue for sentence-by-sentence TTS playback
+  const ttsQueue = [];
+  let isPlayingQueue = false;
+
+  async function playSentenceTTS(sentence) {
+    ttsQueue.push(sentence);
+    if (!isPlayingQueue) {
+      playNextInQueue();
+    }
+  }
+
+  async function playNextInQueue() {
+    if (ttsQueue.length === 0) {
+      isPlayingQueue = false;
+      return;
+    }
+
+    isPlayingQueue = true;
+    const sentence = ttsQueue.shift();
+
+    try {
+      const cacheKey = sentence.slice(0, 500) + selectedTTSVoice + selectedTTSModel;
+      let blob;
+
+      if (ttsCache.has(cacheKey)) {
+        blob = ttsCache.get(cacheKey);
+      } else {
+        const response = await fetch('/openai-tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: sentence,
+            voice: selectedTTSVoice,
+            model: selectedTTSModel,
+            instructions: selectedTTSModel === 'gpt-4o-mini-tts' ? 'Speak warmly and expressively' : undefined
+          })
+        });
+
+        if (!response.ok) {
+          playNextInQueue();
+          return;
+        }
+
+        blob = await response.blob();
+        ttsCache.set(cacheKey, blob);
+      }
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        playNextInQueue();
+      };
+
+      audio.onerror = () => {
+        playNextInQueue();
+      };
+
+      audio.play();
+    } catch (e) {
+      console.error('Sentence TTS error:', e);
+      playNextInQueue();
+    }
+  }
 
   // Share button
   document.getElementById('shareBtn').onclick = () => {

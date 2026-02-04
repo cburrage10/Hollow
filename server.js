@@ -906,6 +906,141 @@ User's message: ${message}`;
   }
 });
 
+// Streaming chat endpoint for Hollow
+app.post("/chat-stream", async (req, res) => {
+  try {
+    const text = (req.body?.text || "").toString().trim();
+    const sessionId = req.body?.sessionId;
+    const model = req.body?.model || "gpt-4.1-mini";
+    const reasoning = req.body?.reasoning || "none";
+
+    if (!text) return res.json({ text: "" });
+    if (!sessionId) return res.status(400).json({ error: "Session ID required" });
+
+    // Handle special commands (non-streaming)
+    if (text.startsWith("/save ") || text.startsWith("/forget ") || text === "/memories" || text.startsWith("/imagine ")) {
+      // Redirect to regular chat for commands
+      return res.redirect(307, '/chat');
+    }
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    const [history, memories, projectFiles] = await Promise.all([
+      getChatHistory(sessionId),
+      getMemories(),
+      getProjectFiles(),
+    ]);
+
+    const context = buildContext(history, memories, projectFiles);
+
+    const fullInstructions = `${baseInstructions}
+
+${context ? "CONTEXT:\n" + context : ""}
+
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are. You also have access to project files - reference them when the user asks about them.
+
+MEMORY SAVING:
+When you learn something important about the user that you'd want to remember for future conversations (their name, preferences, important life details, things they care about), you can save it to memory by including [SAVE_MEMORY: what to remember] anywhere in your response. This will be automatically saved and hidden from the user. Use this sparingly for genuinely important things.
+
+TOOLS:
+- web_search: Search the web for current information. Use this when you need up-to-date info.`;
+
+    const requestBody = {
+      model: model,
+      instructions: fullInstructions,
+      input: text,
+      tools: [{ type: "web_search" }],
+      stream: true,
+    };
+
+    if (model.startsWith("gpt-5") && reasoning !== "none") {
+      requestBody.reasoning = { effort: reasoning };
+    }
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      res.write(`data: ${JSON.stringify({ error: err })}\n\n`);
+      res.end();
+      return;
+    }
+
+    let fullResponse = "";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(data);
+
+            // Handle different event types
+            if (parsed.type === 'response.output_text.delta') {
+              const delta = parsed.delta || '';
+              fullResponse += delta;
+              res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+            } else if (parsed.type === 'response.completed') {
+              // Stream complete
+            }
+          } catch (e) {
+            // Skip unparseable chunks
+          }
+        }
+      }
+    }
+
+    // Process and save response after streaming completes
+    let response_text = fullResponse || "(No text output)";
+
+    // Extract and save any memories
+    const memoryPattern = /\[SAVE_MEMORY:\s*(.+?)\]/g;
+    let match;
+    while ((match = memoryPattern.exec(response_text)) !== null) {
+      const memoryText = match[1].trim();
+      if (memoryText) {
+        await addMemory(memoryText);
+        console.log("Hollow saved memory:", memoryText);
+      }
+    }
+    response_text = response_text.replace(memoryPattern, '').trim();
+
+    await addToHistory(sessionId, "user", text);
+    await addToHistory(sessionId, "assistant", response_text);
+    await touchSession(sessionId);
+
+    // Send final event
+    res.write(`data: ${JSON.stringify({ done: true, full: response_text })}\n\n`);
+    res.end();
+
+  } catch (e) {
+    console.error("Streaming error:", e);
+    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
+    res.end();
+  }
+});
+
 app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
