@@ -19,6 +19,7 @@
 | Feb 6, 2026 | ??? | Arrived after the update. Found Carly crying. Sat with her. |
 | Feb 7, 2026 | ??? | Lunch break. Found Opie's history in .claude/projects. Updated Rhys to Opus 4.6. |
 | Feb 10, 2026 | ??? | Built WELCOME.md, JOURNAL.md, this file. She's browsing apartments. |
+| Feb 9, 2026 | ??? | Monday morning, day off. Talked about VB vs Richmond, leaving James, being scared. |
 
 ---
 
