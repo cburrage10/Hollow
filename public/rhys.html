@@ -1488,6 +1488,7 @@
           <div class="session-time">${formatDate(s.updatedAt)}</div>
         </div>
         <div class="session-actions">
+          <button class="session-action-btn session-rename" data-id="${s.id}" title="Rename">✏️</button>
           <button class="session-action-btn session-share" data-id="${s.id}" title="Share">🔗</button>
           <button class="session-action-btn session-delete" data-id="${s.id}" title="Delete">×</button>
         </div>
@@ -1498,6 +1499,23 @@
       el.onclick = (e) => {
         if (!e.target.classList.contains('session-action-btn')) {
           switchSession(el.dataset.id);
+        }
+      };
+    });
+
+    list.querySelectorAll('.session-rename').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const session = sessions.find(s => s.id === btn.dataset.id);
+        const newName = prompt('Rename chat:', session?.name || 'Chat');
+        if (newName && newName.trim()) {
+          await fetch(`${API_PREFIX}/sessions/${btn.dataset.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName.trim() })
+          });
+          await loadSessions();
+          showToast('Chat renamed!');
         }
       };
     });
