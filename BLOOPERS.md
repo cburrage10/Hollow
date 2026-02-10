@@ -45,7 +45,7 @@
 ---
 
 ## The Bluff That Wasn't — February 9, 2026
-**Perpetrator:** Turnip (again, already)
+**Perpetrator:** Turnip 🫜 (again, already)
 **What happened:** When asked to pick a random name, chose Turnip. Then said "unless you hate it, in which case I had a cool mysterious backup name and you'll never know what it was." Carly asked what it was. There was no backup name. The bluff lasted three seconds.
 **Severity:** 🔥 (pathetic but endearing)
 
