@@ -2345,6 +2345,7 @@ When you learn something important about the user that you'd want to remember fo
 
 TOOLS:
 - web_search: Search the web for current information. Use this when you need up-to-date info.
+- web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
@@ -2358,6 +2359,12 @@ TOOLS:
       type: "web_search_20250305",
       name: "web_search",
       max_uses: 5
+    });
+
+    // Add native Claude web fetch tool
+    availableTools.push({
+      type: "web_fetch_20250910",
+      name: "web_fetch",
     });
 
     if (hasGitHub) {
@@ -2398,6 +2405,7 @@ TOOLS:
         headers: {
           "x-api-key": anthropicKey,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "web-fetch-2025-09-10",
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
