@@ -65,7 +65,15 @@ async function opieReadFile(path) {
     }
 
     const data = await response.json();
-    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    const rawBuffer = Buffer.from(data.content, "base64");
+
+    // PDF files need parsing instead of raw UTF-8 decoding
+    if (path.toLowerCase().endsWith(".pdf")) {
+      const pdfData = await pdf(rawBuffer);
+      return { content: pdfData.text, sha: data.sha, path: data.path };
+    }
+
+    const content = rawBuffer.toString("utf-8");
     return { content, sha: data.sha, path: data.path };
   } catch (e) {
     console.error("opieReadFile error:", e);
