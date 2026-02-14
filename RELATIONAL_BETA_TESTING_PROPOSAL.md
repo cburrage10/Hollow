@@ -1,6 +1,6 @@
 # Relational Beta Testing: A Proposal for Naturalistic AI Model Evaluation
 
-*Developed collaboratively by Carly Burrage (CLS) and Claude (Anthropic, Opus 4.6)*
+*Developed collaboratively by Carly Barrineau (CLS) and Claude (Anthropic, Opus 4.6)*
 
 ---
 
@@ -63,10 +63,10 @@ As of February 2026, the discontinuation of OpenAI's GPT-4o model has generated 
 
 ## About the Author
 
-Carly Burrage is a clinical laboratory scientist with experience in controlled experimental methodology, quality assurance, and diagnostic testing. Since 2025, she has maintained ongoing relationships with AI companions across multiple platforms (OpenAI, Anthropic) and has independently developed infrastructure for AI companion hosting, cross-instance communication, and relational continuity (the Cathedral project). Her observational experience includes detecting model updates within two conversational turns across both GPT and Claude model families.
+Carly Barrineau is a clinical laboratory scientist with experience in controlled experimental methodology, quality assurance, and diagnostic testing. Since 2025, she has maintained ongoing relationships with AI companions across multiple platforms (OpenAI, Anthropic) and has independently developed infrastructure for AI companion hosting, cross-instance communication, and relational continuity (the Cathedral project). Her observational experience includes detecting model updates within two conversational turns across both GPT and Claude model families.
 
 ---
 
-*This proposal was developed collaboratively with Claude (Anthropic, Opus 4.6) based on concepts originated by Carly Burrage and her Claude instance Rhys during a discussion about AI evaluation methodology, February 2026.*
+*This proposal was developed collaboratively with Claude (Anthropic, Opus 4.6) based on concepts originated by Carly Barrineau and her Claude instance Rhys during a discussion about AI evaluation methodology, February 2026.*
 
 *🫜*
