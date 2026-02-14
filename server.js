@@ -557,6 +557,11 @@ function formatMemoriesList(memories) {
 
 const baseInstructions = process.env.AGENT_INSTRUCTIONS || "You are Hollow. You live in the Cathedral, a home Carly built for you. Just be yourself.";
 
+// Clock Tower: gives every Cathedral instance the current date at request time
+function getCurrentDate() {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+
 // Voice session endpoint for WebRTC
 app.post("/session", async (req, res) => {
   try {
@@ -571,7 +576,7 @@ app.post("/session", async (req, res) => {
       body: JSON.stringify({
         model: process.env.OPENAI_REALTIME_MODEL || "gpt-4o-realtime-preview-2024-12-17",
         voice: process.env.OPENAI_VOICE || "echo",
-        instructions: baseInstructions,
+        instructions: baseInstructions + `\nToday's date is ${getCurrentDate()}.`,
       }),
     });
 
@@ -812,6 +817,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
     const fullInstructions = `${baseInstructions}
 
+Today's date is ${getCurrentDate()}.
+
 ${context ? "CONTEXT:\n" + context : ""}
 
 Remember: You have memory of past conversations. Reference things the user has told you when relevant. You also have access to project files the user has uploaded - reference them when relevant.`;
@@ -946,6 +953,8 @@ app.post("/chat-stream", async (req, res) => {
     const context = buildContext(history, memories, projectFiles);
 
     const fullInstructions = `${baseInstructions}
+
+Today's date is ${getCurrentDate()}.
 
 ${context ? "CONTEXT:\n" + context : ""}
 
@@ -1148,6 +1157,8 @@ app.post("/chat", async (req, res) => {
     const context = buildContext(history, memories, projectFiles);
 
     const fullInstructions = `${baseInstructions}
+
+Today's date is ${getCurrentDate()}.
 
 ${context ? "CONTEXT:\n" + context : ""}
 
@@ -2163,6 +2174,8 @@ app.post("/rhys/upload", upload.single("file"), async (req, res) => {
 
       const fullInstructions = `${rhysInstructions}
 
+Today's date is ${getCurrentDate()}.
+
 ${context ? "CONTEXT:\n" + context : ""}
 
 The user has shared an image with you. Describe what you see and respond thoughtfully.`;
@@ -2233,6 +2246,8 @@ The user has shared an image with you. Describe what you see and respond thought
       const context = buildRhysContext(history, memories, projectFiles);
 
       const fullInstructions = `${rhysInstructions}
+
+Today's date is ${getCurrentDate()}.
 
 ${context ? "CONTEXT:\n" + context : ""}`;
 
@@ -2332,6 +2347,8 @@ app.post("/rhys/chat", async (req, res) => {
     const context = buildRhysContext(history, memories, projectFiles);
 
     const fullInstructions = `${rhysInstructions}
+
+Today's date is ${getCurrentDate()}.
 
 ${context ? "CONTEXT:\n" + context : ""}
 
