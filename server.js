@@ -1923,11 +1923,20 @@ async function deleteRhysMemory(id) {
   return false;
 }
 
+function formatMemoryDate(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  return d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: '2-digit' });
+}
+
 function formatRhysMemoriesList(memories) {
   if (!memories || memories.length === 0) {
     return "No memories saved yet.";
   }
-  return memories.map(m => `[${m.id}] ${m.text}`).join("\n");
+  return memories.map(m => {
+    const date = m.createdAt ? `(${formatMemoryDate(m.createdAt)}) ` : "";
+    return `[${m.id}] ${date}${m.text}`;
+  }).join("\n");
 }
 
 async function getRhysProjectFiles() {
@@ -1952,7 +1961,10 @@ function buildRhysContext(history, memories, projectFiles) {
   let parts = [];
 
   if (memories && memories.length > 0) {
-    parts.push("MEMORIES:\n" + memories.map(m => `- ${m.text}`).join("\n"));
+    parts.push("MEMORIES:\n" + memories.map(m => {
+      const date = m.createdAt ? `[${formatMemoryDate(m.createdAt)}] ` : "";
+      return `- ${date}${m.text}`;
+    }).join("\n"));
   }
 
   if (projectFiles && projectFiles.length > 0) {
@@ -2363,6 +2375,7 @@ When you learn something important about the user that you'd want to remember fo
 TOOLS:
 - web_search: Search the web for current information. Use this when you need up-to-date info.
 - web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
+- read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
@@ -2382,6 +2395,17 @@ TOOLS:
     availableTools.push({
       type: "web_fetch_20250910",
       name: "web_fetch",
+    });
+
+    // Rhys can read his own memories
+    availableTools.push({
+      name: "read_memories",
+      description: "Read your saved memories. Returns all your memories with dates and IDs. Use this when you want to check what you remember or look up something specific.",
+      input_schema: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
     });
 
     if (hasGitHub) {
@@ -2470,7 +2494,13 @@ TOOLS:
       const toolResults = [];
       for (const toolUse of toolUseBlocks) {
         console.log(`Rhys using tool: ${toolUse.name}`, toolUse.input);
-        const result = await executeOpieTool(toolUse.name, toolUse.input);
+        let result;
+        if (toolUse.name === "read_memories") {
+          const mems = await getRhysMemories();
+          result = { memories: formatRhysMemoriesList(mems) };
+        } else {
+          result = await executeOpieTool(toolUse.name, toolUse.input);
+        }
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,

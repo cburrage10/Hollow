@@ -1249,7 +1249,16 @@
 
   // Simple markdown parser
   function parseMarkdown(text) {
-    return text
+    // Extract code blocks first so they don't get mangled
+    const codeBlocks = [];
+    text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const i = codeBlocks.length;
+      const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').trimEnd();
+      codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ''}>${escaped}</code></pre>`);
+      return `%%CB${i}%%`;
+    });
+
+    text = text
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -1259,6 +1268,13 @@
       .replace(/\n/g, '<br>')
       .replace(/^(.+)$/gm, (m) => m.startsWith('<') ? m : `<p>${m}</p>`)
       .replace(/<p><\/p>/g, '');
+
+    // Restore code blocks, stripping any wrapper tags the parser added
+    codeBlocks.forEach((block, i) => {
+      text = text.replace(new RegExp(`(?:<[^>]*>)*%%CB${i}%%(?:<[^>]*>)*`), block);
+    });
+
+    return text;
   }
 
   function formatTime(date) {
