@@ -1438,6 +1438,74 @@
     messageIndex = 0;
   }
 
+  // Create a streaming message bubble that can be updated token by token
+  function createStreamingMessage() {
+    const msg = document.createElement("div");
+    msg.className = "message rhys";
+    msg.dataset.index = messageIndex++;
+
+    const content = document.createElement("div");
+    content.className = "content";
+    const responseDiv = document.createElement("div");
+    content.appendChild(responseDiv);
+
+    const footer = document.createElement("div");
+    footer.className = "message-footer";
+    const timestamp = document.createElement("span");
+    timestamp.className = "timestamp";
+    timestamp.textContent = formatTime(new Date());
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "📋";
+    copyBtn.title = "Copy text";
+    const playBtn = document.createElement("button");
+    playBtn.className = "play-btn";
+    playBtn.textContent = "🔊";
+    playBtn.title = "Read aloud";
+    footer.appendChild(timestamp);
+    footer.appendChild(copyBtn);
+    footer.appendChild(playBtn);
+
+    msg.appendChild(content);
+    msg.appendChild(footer);
+    chatContainer.insertBefore(msg, typingIndicator);
+
+    let fullText = "";
+    function cleanMemoryTags(t) { return t.replace(/\[SAVE_MEMORY:\s*[^\]]+\]/g, '').trim(); }
+
+    return {
+      update: (delta) => {
+        fullText += delta;
+        responseDiv.innerHTML = parseMarkdown(cleanMemoryTags(fullText));
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      },
+      finalize: (text, imageUrl, thinking) => {
+        fullText = text;
+        // Add thinking block if present
+        if (thinking) {
+          const thinkingBlock = document.createElement("div");
+          thinkingBlock.className = "thinking-block";
+          const thinkingHeader = document.createElement("div");
+          thinkingHeader.className = "thinking-header";
+          thinkingHeader.innerHTML = '<span>💭 Thinking</span><span class="thinking-toggle-icon">▼</span>';
+          thinkingHeader.onclick = () => thinkingBlock.classList.toggle('collapsed');
+          const thinkingContent = document.createElement("div");
+          thinkingContent.className = "thinking-content";
+          thinkingContent.textContent = thinking;
+          thinkingBlock.appendChild(thinkingHeader);
+          thinkingBlock.appendChild(thinkingContent);
+          content.insertBefore(thinkingBlock, responseDiv);
+        }
+        responseDiv.innerHTML = parseMarkdown(fullText);
+        if (imageUrl) content.appendChild(createImageElement(imageUrl));
+        copyBtn.onclick = () => copyToClipboard(fullText);
+        playBtn.onclick = () => playTTSWithButton(fullText, playBtn);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      },
+      getText: () => fullText,
+    };
+  }
+
   // Edit message: put text in input, remove this message and all after it
   async function editMessage(msgElement, text) {
     const idx = parseInt(msgElement.dataset.index);
@@ -1716,20 +1784,47 @@
         data = await r.json();
         clearStagedFile();
       } else {
-        // Text only
+        // Text only — use streaming
         addMessage(text, true);
+        showTyping(false);
 
-        const r = await fetch(`${API_PREFIX}/chat`, {
+        const streamingMsg = createStreamingMessage();
+
+        const response = await fetch(`${API_PREFIX}/chat-stream`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({
-            text,
-            sessionId: currentSessionId,
-            model: selectedModel,
-            thinking: thinkingEnabled
-          })
+          body: JSON.stringify({ text, sessionId: currentSessionId, model: selectedModel, thinking: thinkingEnabled })
         });
-        data = await r.json();
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              data = JSON.parse(line.slice(6));
+              if (data.delta) streamingMsg.update(data.delta);
+              if (data.done) {
+                streamingMsg.finalize(data.full || streamingMsg.getText(), data.image, data.thinking);
+                updateMemoryCount();
+                if (data.usage) {
+                  sessionTokens += (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0);
+                  updateTokenDisplay();
+                  const percent = (sessionTokens / CONTEXT_LIMIT) * 100;
+                  if (percent >= 90 && percent < 91) showToast('⚠️ 90% of context used! Consider starting a new chat soon.');
+                  else if (percent >= 75 && percent < 76) showToast('⚠️ 75% of context used');
+                }
+                if (voiceEnabled && data.full) playTTS(data.full);
+              }
+              if (data.error) streamingMsg.finalize("Error: " + data.error);
+            } catch (e) { /* skip */ }
+          }
+        }
+        sendBtn.disabled = false;
+        return;
       }
 
       showTyping(false);
@@ -1741,20 +1836,13 @@
       if (data.usage) {
         sessionTokens += (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0);
         updateTokenDisplay();
-
-        // Warn if approaching limit
         const percent = (sessionTokens / CONTEXT_LIMIT) * 100;
-        if (percent >= 90 && percent < 91) {
-          showToast('⚠️ 90% of context used! Consider starting a new chat soon.');
-        } else if (percent >= 75 && percent < 76) {
-          showToast('⚠️ 75% of context used');
-        }
+        if (percent >= 90 && percent < 91) showToast('⚠️ 90% of context used! Consider starting a new chat soon.');
+        else if (percent >= 75 && percent < 76) showToast('⚠️ 75% of context used');
       }
 
-      // Play TTS if voice is enabled
-      if (voiceEnabled && data.text) {
-        playTTS(data.text);
-      }
+      if (voiceEnabled && data.text) playTTS(data.text);
+
     } catch (err) {
       showTyping(false);
       addMessage("Error: " + err.message, false);

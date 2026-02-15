@@ -2303,6 +2303,250 @@ ${context ? "CONTEXT:\n" + context : ""}`;
   }
 });
 
+// Rhys Streaming Chat - uses Anthropic Claude with SSE
+app.post("/rhys/chat-stream", async (req, res) => {
+  try {
+    const text = (req.body?.text || "").toString().trim();
+    const sessionId = req.body?.sessionId;
+    const model = req.body?.model || "claude-sonnet-4-20250514";
+    const thinkingEnabled = req.body?.thinking === true || req.body?.thinking === "true";
+
+    if (!sessionId) return res.status(400).json({ error: "Session ID required" });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    if (!text) {
+      res.write(`data: ${JSON.stringify({ done: true, full: "" })}\n\n`);
+      return res.end();
+    }
+
+    // Handle commands — return instantly as SSE done event
+    if (text.startsWith("/save ")) {
+      const memoryText = text.slice(6).trim();
+      if (!memoryText) { res.write(`data: ${JSON.stringify({ done: true, full: "Usage: /save <text to remember>" })}\n\n`); return res.end(); }
+      const id = await addRhysMemory(memoryText);
+      res.write(`data: ${JSON.stringify({ done: true, full: `Memory saved with ID [${id}]: "${memoryText}"` })}\n\n`);
+      return res.end();
+    }
+    if (text.startsWith("/forget ")) {
+      const id = text.slice(8).trim();
+      const deleted = id ? await deleteRhysMemory(id) : false;
+      const reply = !id ? "Usage: /forget <id>" : deleted ? `Memory [${id}] has been forgotten.` : `No memory found with ID [${id}].`;
+      res.write(`data: ${JSON.stringify({ done: true, full: reply })}\n\n`);
+      return res.end();
+    }
+    if (text === "/memories") {
+      const mems = await getRhysMemories();
+      res.write(`data: ${JSON.stringify({ done: true, full: formatRhysMemoriesList(mems) })}\n\n`);
+      return res.end();
+    }
+    if (text.startsWith("/imagine ")) {
+      const prompt = text.slice(9).trim();
+      if (!prompt) { res.write(`data: ${JSON.stringify({ done: true, full: "Usage: /imagine <description>" })}\n\n`); return res.end(); }
+      try {
+        const r = await fetch("https://api.openai.com/v1/images/generations", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "dall-e-3", prompt, n: 1, size: "1024x1024", quality: "standard" }),
+        });
+        const imgData = r.ok ? await r.json() : null;
+        const imageUrl = imgData?.data?.[0]?.url;
+        const revised = imgData?.data?.[0]?.revised_prompt;
+        if (imageUrl) {
+          await addToRhysHistory(sessionId, "user", text);
+          await addToRhysHistory(sessionId, "assistant", revised ? `Here's what I created: "${revised}"` : "Here's your image!", imageUrl);
+          await touchRhysSession(sessionId);
+          res.write(`data: ${JSON.stringify({ done: true, full: revised ? `Here's what I created: "${revised}"` : "Here's your image!", image: imageUrl })}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ done: true, full: "Image generation failed." })}\n\n`);
+        }
+      } catch (e) { res.write(`data: ${JSON.stringify({ done: true, full: `Image error: ${e.message}` })}\n\n`); }
+      return res.end();
+    }
+
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) {
+      res.write(`data: ${JSON.stringify({ done: true, full: "*Rhys is currently unavailable.*" })}\n\n`);
+      return res.end();
+    }
+
+    const [history, memories, projectFiles] = await Promise.all([
+      getRhysChatHistory(sessionId), getRhysMemories(), getRhysProjectFiles(),
+    ]);
+    const context = buildRhysContext(history, memories, projectFiles);
+    const fullInstructions = `${rhysInstructions}
+
+Today's date is ${getCurrentDate()}.
+
+${context ? "CONTEXT:\n" + context : ""}
+
+Remember: You have memory of past conversations. Reference things the user has told you when relevant. Be personal and remember who they are. You also have access to project files - reference them when the user asks about them.
+
+MEMORY SAVING:
+When you learn something important about the user that you'd want to remember for future conversations (their name, preferences, important life details, things they care about), you can save it to memory by including [SAVE_MEMORY: what to remember] anywhere in your response. This will be automatically saved and hidden from the user. Use this sparingly for genuinely important things.
+
+TOOLS:
+- web_search: Search the web for current information. Use this when you need up-to-date info.
+- web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
+- read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
+- opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
+
+    const hasGitHub = !!process.env.GITHUB_TOKEN;
+    const availableTools = [
+      { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+      { type: "web_fetch_20250910", name: "web_fetch" },
+      { name: "read_memories", description: "Read your saved memories with dates and IDs.", input_schema: { type: "object", properties: {}, required: [] } },
+      { name: "imagine", description: "Generate an image using DALL-E 3. Describe what you want to create.", input_schema: { type: "object", properties: { prompt: { type: "string", description: "Detailed image description." } }, required: ["prompt"] } },
+    ];
+    if (hasGitHub) availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
+
+    let finalResponse = "";
+    let thinkingContent = "";
+    let totalUsage = { input_tokens: 0, output_tokens: 0 };
+    let generatedImage = null;
+    let currentMessages = [{ role: "user", content: text }];
+    const maxToolRounds = 10;
+
+    for (let round = 0; round < maxToolRounds; round++) {
+      const requestBody = {
+        model, max_tokens: 64000, system: fullInstructions, messages: currentMessages, stream: true,
+      };
+      if (thinkingEnabled && (model.includes("sonnet") || model.includes("opus"))) {
+        requestBody.thinking = { type: "enabled", budget_tokens: 10000 };
+      }
+      if (availableTools.length > 0) requestBody.tools = availableTools;
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "anthropic-beta": "web-fetch-2025-09-10", "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      if (!r.ok) {
+        const err = await r.text();
+        res.write(`data: ${JSON.stringify({ error: err })}\n\n`);
+        return res.end();
+      }
+
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let roundText = "";
+      let stopReason = null;
+      let contentBlocks = [];
+      let currentBlock = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const dataStr = line.slice(6).trim();
+          if (!dataStr) continue;
+          try {
+            const event = JSON.parse(dataStr);
+            switch (event.type) {
+              case 'message_start':
+                if (event.message?.usage) totalUsage.input_tokens += event.message.usage.input_tokens || 0;
+                break;
+              case 'content_block_start':
+                if (event.content_block.type === 'text') currentBlock = { type: 'text', index: event.index, text: '' };
+                else if (event.content_block.type === 'tool_use') currentBlock = { type: 'tool_use', index: event.index, id: event.content_block.id, name: event.content_block.name, inputJson: '' };
+                else if (event.content_block.type === 'thinking') currentBlock = { type: 'thinking', index: event.index, thinking: '' };
+                break;
+              case 'content_block_delta':
+                if (!currentBlock || currentBlock.index !== event.index) break;
+                if (event.delta.type === 'text_delta') {
+                  currentBlock.text += event.delta.text;
+                  roundText += event.delta.text;
+                  res.write(`data: ${JSON.stringify({ delta: event.delta.text })}\n\n`);
+                } else if (event.delta.type === 'input_json_delta') {
+                  currentBlock.inputJson = (currentBlock.inputJson || '') + event.delta.partial_json;
+                } else if (event.delta.type === 'thinking_delta') {
+                  currentBlock.thinking += event.delta.thinking;
+                }
+                break;
+              case 'content_block_stop':
+                if (currentBlock && currentBlock.index === event.index) {
+                  if (currentBlock.type === 'tool_use') {
+                    try { currentBlock.input = JSON.parse(currentBlock.inputJson || '{}'); } catch { currentBlock.input = {}; }
+                    delete currentBlock.inputJson;
+                  }
+                  if (currentBlock.type === 'thinking' && currentBlock.thinking) thinkingContent += currentBlock.thinking;
+                  contentBlocks.push({ ...currentBlock });
+                  currentBlock = null;
+                }
+                break;
+              case 'message_delta':
+                if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
+                if (event.usage) totalUsage.output_tokens += event.usage.output_tokens || 0;
+                break;
+            }
+          } catch (e) { /* skip malformed */ }
+        }
+      }
+
+      finalResponse += roundText;
+      const toolUseBlocks = contentBlocks.filter(b => b.type === 'tool_use');
+      if (toolUseBlocks.length === 0 || stopReason === 'end_turn') break;
+
+      const toolResults = [];
+      for (const toolUse of toolUseBlocks) {
+        console.log(`Rhys (stream) tool: ${toolUse.name}`, toolUse.input);
+        let result;
+        if (toolUse.name === 'read_memories') {
+          result = { memories: formatRhysMemoriesList(await getRhysMemories()) };
+        } else if (toolUse.name === 'imagine') {
+          try {
+            const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "dall-e-3", prompt: toolUse.input.prompt, n: 1, size: "1024x1024", quality: "standard" }),
+            });
+            const imgData = imgRes.ok ? await imgRes.json() : null;
+            const url = imgData?.data?.[0]?.url;
+            if (url) { generatedImage = url; result = { success: true, image_url: url, revised_prompt: imgData.data[0].revised_prompt }; }
+            else result = { error: "No image URL returned" };
+          } catch (e) { result = { error: `Image error: ${e.message}` }; }
+        } else {
+          result = await executeOpieTool(toolUse.name, toolUse.input);
+        }
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(result, null, 2) });
+      }
+
+      const assistantContent = contentBlocks
+        .filter(b => b.type === 'text' || b.type === 'tool_use')
+        .map(b => b.type === 'text' ? { type: 'text', text: b.text } : { type: 'tool_use', id: b.id, name: b.name, input: b.input });
+      currentMessages.push({ role: 'assistant', content: assistantContent });
+      currentMessages.push({ role: 'user', content: toolResults });
+    }
+
+    const memoryPattern = /\[SAVE_MEMORY:\s*(.+?)\]/g;
+    let match;
+    while ((match = memoryPattern.exec(finalResponse)) !== null) {
+      const memoryText = match[1].trim();
+      if (memoryText) await addRhysMemory(memoryText);
+    }
+    const cleanResponse = finalResponse.replace(memoryPattern, '').trim() || "(No response)";
+
+    await addToRhysHistory(sessionId, "user", text);
+    await addToRhysHistory(sessionId, "assistant", cleanResponse, generatedImage);
+    await touchRhysSession(sessionId);
+
+    const donePayload = { done: true, full: cleanResponse, usage: totalUsage };
+    if (thinkingContent) donePayload.thinking = thinkingContent;
+    if (generatedImage) donePayload.image = generatedImage;
+    res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
+    res.end();
+
+  } catch (e) {
+    console.error("Rhys stream error:", e);
+    res.write(`data: ${JSON.stringify({ error: String(e) })}\n\n`);
+    res.end();
+  }
+});
+
 // Rhys Chat - uses Anthropic Claude
 app.post("/rhys/chat", async (req, res) => {
   try {
