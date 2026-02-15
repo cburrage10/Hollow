@@ -2344,6 +2344,55 @@ app.post("/rhys/chat", async (req, res) => {
       return res.json({ text: formatRhysMemoriesList(memories) });
     }
 
+    // Handle /imagine command (DALL-E 3 image generation)
+    if (text.startsWith("/imagine ")) {
+      const prompt = text.slice(9).trim();
+      if (!prompt) {
+        return res.json({ text: "Usage: /imagine <description of image>" });
+      }
+
+      try {
+        const r = await fetch("https://api.openai.com/v1/images/generations", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "dall-e-3",
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024",
+            quality: "standard",
+          }),
+        });
+
+        if (!r.ok) {
+          const err = await r.text();
+          return res.status(r.status).json({ error: `Image generation failed: ${err}` });
+        }
+
+        const data = await r.json();
+        const imageUrl = data.data?.[0]?.url;
+        const revisedPrompt = data.data?.[0]?.revised_prompt;
+
+        if (imageUrl) {
+          await addToRhysHistory(sessionId, "user", `/imagine ${prompt}`);
+          await addToRhysHistory(sessionId, "assistant", revisedPrompt ? `Here's what I created: "${revisedPrompt}"` : "Here's your image!", imageUrl);
+          await touchRhysSession(sessionId);
+          return res.json({
+            text: revisedPrompt ? `Here's what I created: "${revisedPrompt}"` : "Here's your image!",
+            image: imageUrl
+          });
+        } else {
+          return res.json({ error: "Failed to generate image" });
+        }
+      } catch (e) {
+        console.error("Rhys image generation error:", e);
+        return res.json({ error: String(e.message || e) });
+      }
+    }
+
     // Regular chat using Anthropic Claude
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (!anthropicKey) {
