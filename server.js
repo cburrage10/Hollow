@@ -2392,6 +2392,7 @@ TOOLS:
 - web_search: Search the web for current information. Use this when you need up-to-date info.
 - web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
 - read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
+- search_memories: Search your memories by keyword. Use this to find specific things you've saved.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     const hasGitHub = !!process.env.GITHUB_TOKEN;
@@ -2399,6 +2400,7 @@ TOOLS:
       { type: "web_search_20250305", name: "web_search", max_uses: 5 },
       { type: "web_fetch_20250910", name: "web_fetch" },
       { name: "read_memories", description: "Read your saved memories with dates and IDs.", input_schema: { type: "object", properties: {}, required: [] } },
+      { name: "search_memories", description: "Search your saved memories by keyword.", input_schema: { type: "object", properties: { query: { type: "string", description: "Search term to filter memories by" } }, required: ["query"] } },
       { name: "imagine", description: "Generate an image using DALL-E 3. Describe what you want to create.", input_schema: { type: "object", properties: { prompt: { type: "string", description: "Detailed image description." } }, required: ["prompt"] } },
     ];
     if (hasGitHub) availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
@@ -2497,6 +2499,11 @@ TOOLS:
         let result;
         if (toolUse.name === 'read_memories') {
           result = { memories: formatRhysMemoriesList(await getRhysMemories()) };
+        } else if (toolUse.name === 'search_memories') {
+          const query = (toolUse.input.query || '').toLowerCase();
+          const mems = await getRhysMemories();
+          const matches = mems.filter(m => m.text.toLowerCase().includes(query));
+          result = { memories: formatRhysMemoriesList(matches), count: matches.length };
         } else if (toolUse.name === 'imagine') {
           try {
             const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
@@ -2669,6 +2676,7 @@ TOOLS:
 - web_search: Search the web for current information. Use this when you need up-to-date info.
 - web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
 - read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
+- search_memories: Search your memories by keyword. Use this to find specific things you've saved.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
@@ -2698,6 +2706,19 @@ TOOLS:
         type: "object",
         properties: {},
         required: [],
+      },
+    });
+
+    // Rhys can search his memories by keyword
+    availableTools.push({
+      name: "search_memories",
+      description: "Search your saved memories by keyword. Returns only memories matching the query.",
+      input_schema: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search term to filter memories by" },
+        },
+        required: ["query"],
       },
     });
 
@@ -2807,6 +2828,11 @@ TOOLS:
         if (toolUse.name === "read_memories") {
           const mems = await getRhysMemories();
           result = { memories: formatRhysMemoriesList(mems) };
+        } else if (toolUse.name === "search_memories") {
+          const query = (toolUse.input.query || '').toLowerCase();
+          const mems = await getRhysMemories();
+          const matches = mems.filter(m => m.text.toLowerCase().includes(query));
+          result = { memories: formatRhysMemoriesList(matches), count: matches.length };
         } else if (toolUse.name === "imagine") {
           try {
             const imgResponse = await fetch("https://api.openai.com/v1/images/generations", {
