@@ -2563,6 +2563,41 @@ TOOLS:
         if (toolUse.name === "read_memories") {
           const mems = await getRhysMemories();
           result = { memories: formatRhysMemoriesList(mems) };
+        } else if (toolUse.name === "imagine") {
+          try {
+            const imgResponse = await fetch("https://api.openai.com/v1/images/generations", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "dall-e-3",
+                prompt: toolUse.input.prompt,
+                n: 1,
+                size: "1024x1024",
+                quality: "standard",
+              }),
+            });
+            if (!imgResponse.ok) {
+              const err = await imgResponse.text();
+              result = { error: `Image generation failed: ${err}` };
+            } else {
+              const imgData = await imgResponse.json();
+              const generatedUrl = imgData.data?.[0]?.url;
+              const revisedPrompt = imgData.data?.[0]?.revised_prompt;
+              if (generatedUrl) {
+                // Store image URL to include in final response
+                if (!res.locals) res.locals = {};
+                res.locals.generatedImage = generatedUrl;
+                result = { success: true, image_url: generatedUrl, revised_prompt: revisedPrompt || toolUse.input.prompt };
+              } else {
+                result = { error: "No image URL returned from DALL-E" };
+              }
+            }
+          } catch (imgErr) {
+            result = { error: `Image generation error: ${imgErr.message}` };
+          }
         } else {
           result = await executeOpieTool(toolUse.name, toolUse.input);
         }
