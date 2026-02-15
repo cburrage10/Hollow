@@ -2628,13 +2628,19 @@ TOOLS:
     // Remove memory tags from response shown to user
     response = response.replace(memoryPattern, '').trim();
 
+    // Check if an image was generated during tool use
+    const generatedImage = res.locals?.generatedImage || null;
+
     await addToRhysHistory(sessionId, "user", text);
-    await addToRhysHistory(sessionId, "assistant", response);
+    await addToRhysHistory(sessionId, "assistant", response, generatedImage);
     await touchRhysSession(sessionId);
 
     const result = { text: response, usage: totalUsage };
     if (thinkingContent) {
       result.thinking = thinkingContent;
+    }
+    if (generatedImage) {
+      result.image = generatedImage;
     }
     res.json(result);
   } catch (e) {
