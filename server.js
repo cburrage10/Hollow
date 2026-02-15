@@ -2457,6 +2457,22 @@ TOOLS:
       },
     });
 
+    // Rhys can generate images with DALL-E 3
+    availableTools.push({
+      name: "imagine",
+      description: "Generate an image using DALL-E 3. Use this when you want to create, draw, paint, or visualize something. Describe the image in detail including style, mood, colors, and composition.",
+      input_schema: {
+        type: "object",
+        properties: {
+          prompt: {
+            type: "string",
+            description: "A detailed description of the image to generate. Be specific about style, colors, mood, composition, and subject matter.",
+          },
+        },
+        required: ["prompt"],
+      },
+    });
+
     if (hasGitHub) {
       availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
     }
