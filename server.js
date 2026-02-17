@@ -4,6 +4,7 @@ import multer from "multer";
 import pdf from "pdf-parse/lib/pdf-parse.js";
 import crypto from "crypto";
 import { Blob } from "buffer";
+import PptxGenJS from "pptxgenjs";
 
 // Configure multer for file uploads (store in memory)
 const upload = multer({
