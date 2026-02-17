@@ -2739,6 +2739,49 @@ TOOLS:
       },
     });
 
+    // Rhys can create PowerPoint presentations
+    availableTools.push({
+      name: "pptx_create",
+      description: "Create a new PowerPoint presentation from scratch. Use this when you need to generate slides for a presentation, report, or visual communication. You can specify slide content, layouts, and styling.",
+      input_schema: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "Title of the presentation",
+          },
+          slides: {
+            type: "array",
+            description: "Array of slide objects. Each slide should have a type (title, content, image, comparison, etc.) and relevant content",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["title", "content", "image", "comparison", "closing"],
+                  description: "Type of slide layout to use",
+                },
+                title: { type: "string", description: "Slide title" },
+                content: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Array of content items (bullet points, paragraphs, etc.)",
+                },
+                notes: { type: "string", description: "Speaker notes for this slide" },
+              },
+              required: ["type"],
+            },
+          },
+          theme: {
+            type: "string",
+            enum: ["professional", "creative", "minimal", "bold"],
+            description: "Visual theme for the presentation",
+          },
+        },
+        required: ["title", "slides"],
+      },
+    });
+
     if (hasGitHub) {
       availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
     }
