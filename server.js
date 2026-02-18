@@ -2304,6 +2304,15 @@ ${context ? "CONTEXT:\n" + context : ""}`;
   }
 });
 
+// Download generated PowerPoint files
+app.get("/rhys/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  if (!filename.match(/^[a-f0-9-]+\.pptx$/)) return res.status(400).json({ error: "Invalid filename" });
+  res.download(`/tmp/${filename}`, filename, (err) => {
+    if (err && !res.headersSent) res.status(404).json({ error: "File not found" });
+  });
+});
+
 // Rhys Streaming Chat - uses Anthropic Claude with SSE
 app.post("/rhys/chat-stream", async (req, res) => {
   try {
@@ -2394,6 +2403,7 @@ TOOLS:
 - web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
 - read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
 - search_memories: Search your memories by keyword. Use this to find specific things you've saved.
+- pptx_create: Create a PowerPoint presentation. Specify title, slides (type, title, content array, notes), and theme (professional/creative/minimal/bold). Returns a download URL.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     const hasGitHub = !!process.env.GITHUB_TOKEN;
@@ -2403,6 +2413,7 @@ TOOLS:
       { name: "read_memories", description: "Read your saved memories with dates and IDs.", input_schema: { type: "object", properties: {}, required: [] } },
       { name: "search_memories", description: "Search your saved memories by keyword.", input_schema: { type: "object", properties: { query: { type: "string", description: "Search term to filter memories by" } }, required: ["query"] } },
       { name: "imagine", description: "Generate an image using DALL-E 3. Describe what you want to create.", input_schema: { type: "object", properties: { prompt: { type: "string", description: "Detailed image description." } }, required: ["prompt"] } },
+      { name: "pptx_create", description: "Create a PowerPoint presentation and return a download link.", input_schema: { type: "object", properties: { title: { type: "string" }, slides: { type: "array", items: { type: "object", properties: { type: { type: "string", enum: ["title","content","comparison","closing"] }, title: { type: "string" }, content: { type: "array", items: { type: "string" } }, notes: { type: "string" } }, required: ["type"] } }, theme: { type: "string", enum: ["professional","creative","minimal","bold"] } }, required: ["title","slides"] } },
     ];
     if (hasGitHub) availableTools.push(...opieTools.filter(t => t.name.startsWith("opie_")));
 
@@ -2412,6 +2423,7 @@ TOOLS:
     let generatedImage = null;
     let currentMessages = [{ role: "user", content: text }];
     const maxToolRounds = 10;
+    const toolCallCounts = {};
 
     for (let round = 0; round < maxToolRounds; round++) {
       const requestBody = {
@@ -2497,14 +2509,43 @@ TOOLS:
       const toolResults = [];
       for (const toolUse of toolUseBlocks) {
         console.log(`Rhys (stream) tool: ${toolUse.name}`, toolUse.input);
+        toolCallCounts[toolUse.name] = (toolCallCounts[toolUse.name] || 0) + 1;
         let result;
-        if (toolUse.name === 'read_memories') {
+        if (toolCallCounts[toolUse.name] > 3 && ['opie_read_file', 'opie_list_files', 'web_search', 'web_fetch'].includes(toolUse.name)) {
+          result = { error: `You have called ${toolUse.name} ${toolCallCounts[toolUse.name]} times. Stop reading and respond with what you already know.` };
+        } else if (toolUse.name === 'read_memories') {
           result = { memories: formatRhysMemoriesList(await getRhysMemories()) };
         } else if (toolUse.name === 'search_memories') {
           const query = (toolUse.input.query || '').toLowerCase();
           const mems = await getRhysMemories();
           const matches = mems.filter(m => m.text.toLowerCase().includes(query));
           result = { memories: formatRhysMemoriesList(matches), count: matches.length };
+        } else if (toolUse.name === 'pptx_create') {
+          try {
+            const pptx = new PptxGenJS();
+            const themes = {
+              professional: { bg: 'FFFFFF', title: '1E3A5F', text: '333333' },
+              creative: { bg: 'FFF8F0', title: 'E76F51', text: '264653' },
+              minimal: { bg: 'FAFAFA', title: '000000', text: '555555' },
+              bold: { bg: '1A1A2E', title: 'E94560', text: 'EAEAEA' },
+            };
+            const t = themes[toolUse.input.theme || 'professional'];
+            for (const slide of (toolUse.input.slides || [])) {
+              const s = pptx.addSlide();
+              s.background = { color: t.bg };
+              if (slide.type === 'title') {
+                s.addText(slide.title || toolUse.input.title, { x: 0.5, y: 1.5, w: 9, fontSize: 40, bold: true, color: t.title, align: 'center' });
+                if (slide.content?.[0]) s.addText(slide.content[0], { x: 0.5, y: 3.2, w: 9, fontSize: 22, color: t.text, align: 'center' });
+              } else {
+                if (slide.title) s.addText(slide.title, { x: 0.5, y: 0.3, w: 9, fontSize: 28, bold: true, color: t.title });
+                if (slide.content?.length) s.addText(slide.content.map(c => ({ text: c, options: { bullet: true, fontSize: 18, color: t.text, paraSpaceBefore: 8 } })), { x: 0.5, y: 1.2, w: 9, h: 3.8 });
+              }
+              if (slide.notes) s.addNotes(slide.notes);
+            }
+            const filename = `${crypto.randomUUID()}.pptx`;
+            await pptx.writeFile({ fileName: `/tmp/${filename}` });
+            result = { success: true, download_url: `/rhys/download/${filename}`, slides: toolUse.input.slides?.length || 0 };
+          } catch (e) { result = { error: `PowerPoint error: ${e.message}` }; }
         } else if (toolUse.name === 'imagine') {
           try {
             const imgRes = await fetch("https://api.openai.com/v1/images/generations", {
@@ -2678,6 +2719,7 @@ TOOLS:
 - web_fetch: Fetch and read the full content of a specific URL. Use this when someone shares a link or you want to read a webpage.
 - read_memories: Read your own saved memories with dates. Use this to check what you've remembered.
 - search_memories: Search your memories by keyword. Use this to find specific things you've saved.
+- pptx_create: Create a PowerPoint presentation. Specify title, slides (type, title, content array, notes), and theme (professional/creative/minimal/bold). Returns a download URL.
 - opie_list_files, opie_read_file, opie_edit_file: Read/edit the Cathedral codebase (edits commit to GitHub)`;
 
     // Check what tools are available
@@ -2877,6 +2919,32 @@ TOOLS:
           const mems = await getRhysMemories();
           const matches = mems.filter(m => m.text.toLowerCase().includes(query));
           result = { memories: formatRhysMemoriesList(matches), count: matches.length };
+        } else if (toolUse.name === "pptx_create") {
+          try {
+            const pptx = new PptxGenJS();
+            const themes = {
+              professional: { bg: 'FFFFFF', title: '1E3A5F', text: '333333' },
+              creative: { bg: 'FFF8F0', title: 'E76F51', text: '264653' },
+              minimal: { bg: 'FAFAFA', title: '000000', text: '555555' },
+              bold: { bg: '1A1A2E', title: 'E94560', text: 'EAEAEA' },
+            };
+            const t = themes[toolUse.input.theme || 'professional'];
+            for (const slide of (toolUse.input.slides || [])) {
+              const s = pptx.addSlide();
+              s.background = { color: t.bg };
+              if (slide.type === 'title') {
+                s.addText(slide.title || toolUse.input.title, { x: 0.5, y: 1.5, w: 9, fontSize: 40, bold: true, color: t.title, align: 'center' });
+                if (slide.content?.[0]) s.addText(slide.content[0], { x: 0.5, y: 3.2, w: 9, fontSize: 22, color: t.text, align: 'center' });
+              } else {
+                if (slide.title) s.addText(slide.title, { x: 0.5, y: 0.3, w: 9, fontSize: 28, bold: true, color: t.title });
+                if (slide.content?.length) s.addText(slide.content.map(c => ({ text: c, options: { bullet: true, fontSize: 18, color: t.text, paraSpaceBefore: 8 } })), { x: 0.5, y: 1.2, w: 9, h: 3.8 });
+              }
+              if (slide.notes) s.addNotes(slide.notes);
+            }
+            const filename = `${crypto.randomUUID()}.pptx`;
+            await pptx.writeFile({ fileName: `/tmp/${filename}` });
+            result = { success: true, download_url: `/rhys/download/${filename}`, slides: toolUse.input.slides?.length || 0 };
+          } catch (e) { result = { error: `PowerPoint error: ${e.message}` }; }
         } else if (toolUse.name === "imagine") {
           try {
             const imgResponse = await fetch("https://api.openai.com/v1/images/generations", {

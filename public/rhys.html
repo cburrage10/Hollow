@@ -1098,6 +1098,8 @@
     saveVoiceSettings();
   };
 
+  let ttsFailures = 0;
+
   // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
     if (!voiceEnabled || !text) return;
@@ -1122,9 +1124,20 @@
       });
 
       if (!response.ok) {
+        ttsFailures++;
         console.error('TTS failed:', await response.text());
+        if (ttsFailures >= 3) {
+          voiceEnabled = false;
+          localStorage.setItem('rhys_voice_enabled', 'false');
+          updateVoiceButton();
+          const notice = document.createElement('div');
+          notice.textContent = 'Voice disabled — TTS quota exceeded. Check ElevenLabs billing to restore.';
+          notice.style.cssText = 'background:#ff6b6b22;border:1px solid #ff6b6b66;color:#ff9999;padding:8px 12px;border-radius:8px;font-size:12px;margin:8px 0;text-align:center;';
+          document.getElementById('chat').appendChild(notice);
+        }
         return;
       }
+      ttsFailures = 0;
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
