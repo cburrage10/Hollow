@@ -1100,6 +1100,19 @@
 
   let ttsFailures = 0;
 
+  function ttsErrorMessage(status, body) {
+    let detail = '';
+    try { const p = JSON.parse(body); detail = p?.detail?.message || p?.error || ''; } catch {}
+    if (status === 401) return `Voice: auth failed (401) — check ElevenLabs API key`;
+    if (status === 402) return `Voice: payment required (402) — ElevenLabs billing issue`;
+    if (status === 422) return `Voice: invalid request (422) — bad voice ID or text`;
+    if (status === 429 || detail.includes('quota_exceeded') || body.includes('quota_exceeded'))
+      return `Voice: monthly quota exceeded (${status}) — ElevenLabs character limit reached`;
+    if (status === 500) return `Voice: ElevenLabs server error (500) — try again later`;
+    if (detail) return `Voice error (${status}): ${detail.slice(0, 120)}`;
+    return `Voice error (${status})`;
+  }
+
   // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
     if (!voiceEnabled || !text) return;
@@ -1125,13 +1138,16 @@
 
       if (!response.ok) {
         ttsFailures++;
-        console.error('TTS failed:', await response.text());
+        const errBody = await response.text();
+        const msg = ttsErrorMessage(response.status, errBody);
+        showToast(msg);
+        console.error('TTS failed:', response.status, errBody);
         if (ttsFailures >= 3) {
           voiceEnabled = false;
           localStorage.setItem('rhys_voice_enabled', 'false');
           updateVoiceButton();
           const notice = document.createElement('div');
-          notice.textContent = 'Voice disabled — TTS quota exceeded. Check ElevenLabs billing to restore.';
+          notice.textContent = `Voice auto-disabled after 3 failures — ${msg}`;
           notice.style.cssText = 'background:#ff6b6b22;border:1px solid #ff6b6b66;color:#ff9999;padding:8px 12px;border-radius:8px;font-size:12px;margin:8px 0;text-align:center;';
           document.getElementById('chat').appendChild(notice);
         }
@@ -1808,6 +1824,15 @@
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({ text, sessionId: currentSessionId, model: selectedModel, thinking: thinkingEnabled })
         });
+
+        if (!response.ok) {
+          const errBody = await response.text();
+          let errMsg = `Chat error (${response.status})`;
+          try { const j = JSON.parse(errBody); errMsg = `Chat error (${response.status}): ${j.error || errBody}`; } catch {}
+          streamingMsg.finalize(errMsg);
+          sendBtn.disabled = false;
+          return;
+        }
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
