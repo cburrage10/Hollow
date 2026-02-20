@@ -927,7 +927,7 @@ app.post("/chat-stream", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
-    const model = req.body?.model || "gpt-4.1-mini";
+    const model = req.body?.model || "gpt-5.2";
     const reasoning = req.body?.reasoning || "none";
 
     if (!text) return res.json({ text: "" });
@@ -1063,7 +1063,7 @@ app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
-    const model = req.body?.model || "gpt-4.1-mini";
+    const model = req.body?.model || "gpt-5.2";
     const reasoning = req.body?.reasoning || "none";
 
     if (!text) return res.json({ text: "" });

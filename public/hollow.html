@@ -685,8 +685,6 @@
       </div>
       <div class="header-right">
         <select id="openaiModelSelect" title="Select OpenAI model">
-          <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
-          <option value="gpt-4.1">GPT-4.1</option>
           <option value="gpt-5.2">GPT-5.2</option>
           <option value="gpt-5-nano">GPT-5 Nano</option>
         </select>
@@ -832,7 +830,8 @@
   // Model and reasoning settings
   const openaiModelSelect = document.getElementById('openaiModelSelect');
   const reasoningSelect = document.getElementById('reasoningSelect');
-  let selectedModel = localStorage.getItem('hollow_model') || 'gpt-4.1-mini';
+  let selectedModel = localStorage.getItem('hollow_model') || 'gpt-5.2';
+  if (selectedModel === 'gpt-4.1-mini' || selectedModel === 'gpt-4.1') selectedModel = 'gpt-5.2';
   let selectedReasoning = localStorage.getItem('hollow_reasoning') || 'none';
 
   // Initialize model dropdown
