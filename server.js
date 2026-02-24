@@ -777,12 +777,28 @@ app.post("/project-files", upload.single("file"), async (req, res) => {
       const pdfData = await pdf(file.buffer);
       content = pdfData.text;
       type = "pdf";
+    } else if (file.originalname.match(/\.docx?$/i) ||
+               file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+               file.mimetype === "application/msword") {
+      const result = await mammoth.extractRawText({ buffer: file.buffer });
+      content = result.value;
+      type = "docx";
+    } else if (file.originalname.match(/\.xlsx?$/i) ||
+               file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+               file.mimetype === "application/vnd.ms-excel") {
+      const workbook = XLSX.read(file.buffer, { type: "buffer" });
+      const sheets = workbook.SheetNames.map(name => {
+        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+        return `=== Sheet: ${name} ===\n${csv}`;
+      });
+      content = sheets.join("\n\n");
+      type = "xlsx";
     } else if (file.mimetype.startsWith("text/") ||
                file.originalname.match(/\.(txt|md|csv|json|js|ts|py|html|css)$/i)) {
       content = file.buffer.toString("utf-8");
       type = "text";
     } else {
-      return res.status(400).json({ error: "Unsupported file type. Use text files or PDFs." });
+      return res.status(400).json({ error: "Unsupported file type. Use text files, PDFs, Word docs, or Excel files." });
     }
 
     const id = await addProjectFile(file.originalname, content, type);
