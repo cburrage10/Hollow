@@ -16,9 +16,15 @@ const upload = multer({
     const allowedText = ["text/plain", "application/pdf", "text/markdown", "text/csv"];
     const allowedImages = ["image/jpeg", "image/png", "image/gif", "image/webp"];
     const allowedAudio = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/ogg"];
+    const allowedOffice = [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",       // .xlsx
+      "application/msword",       // .doc
+      "application/vnd.ms-excel", // .xls
+    ];
     if (allowedText.includes(file.mimetype) || allowedImages.includes(file.mimetype) ||
-        allowedAudio.includes(file.mimetype) ||
-        file.originalname.match(/\.(txt|pdf|md|csv|jpg|jpeg|png|gif|webp|webm|mp3|wav|ogg|m4a)$/i)) {
+        allowedAudio.includes(file.mimetype) || allowedOffice.includes(file.mimetype) ||
+        file.originalname.match(/\.(txt|pdf|md|csv|jpg|jpeg|png|gif|webp|webm|mp3|wav|ogg|m4a|docx|doc|xlsx|xls)$/i)) {
       cb(null, true);
     } else {
       cb(new Error("Unsupported file type"));
