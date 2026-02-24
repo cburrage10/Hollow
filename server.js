@@ -2,6 +2,8 @@ import express from "express";
 import { Redis } from "@upstash/redis";
 import multer from "multer";
 import pdf from "pdf-parse/lib/pdf-parse.js";
+import mammoth from "mammoth";
+import * as XLSX from "xlsx";
 import crypto from "crypto";
 import { Blob } from "buffer";
 import PptxGenJS from "pptxgenjs";
