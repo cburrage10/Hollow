@@ -290,6 +290,11 @@ app.get("/library", (req, res) => {
   res.sendFile("library.html", { root: "public" });
 });
 
+// Route for Office (work-mode Rhys)
+app.get("/office", (req, res) => {
+  res.sendFile("office.html", { root: "public" });
+});
+
 // Parse JSON bodies for /chat
 app.use(express.json());
 
