@@ -2262,9 +2262,23 @@ The user has shared an image with you. Describe what you see and respond thought
 
     } else {
       // Text file processing
-      if (req.file.mimetype === "application/pdf") {
+      if (req.file.mimetype === "application/pdf" || req.file.originalname.endsWith(".pdf")) {
         const data = await pdf(req.file.buffer);
         content = data.text;
+      } else if (req.file.originalname.match(/\.docx?$/i) ||
+                 req.file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+                 req.file.mimetype === "application/msword") {
+        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+        content = result.value;
+      } else if (req.file.originalname.match(/\.xlsx?$/i) ||
+                 req.file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+                 req.file.mimetype === "application/vnd.ms-excel") {
+        const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+        const sheets = workbook.SheetNames.map(name => {
+          const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+          return `=== Sheet: ${name} ===\n${csv}`;
+        });
+        content = sheets.join("\n\n");
       } else {
         content = req.file.buffer.toString("utf-8");
       }
