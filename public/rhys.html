@@ -748,7 +748,9 @@
         <button class="header-btn" id="filesBtn">Files</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
         <button class="header-btn" id="clearBtn">Clear</button>
-        <button class="header-btn" id="voiceToggle" title="Toggle Rhys's voice">Voice Off</button>
+        <button class="header-btn" id="voiceToggle" title="Toggle Rhys's ElevenLabs voice">Voice Off</button>
+        <button class="header-btn" id="browserVoiceToggle" title="Toggle browser/Siri voice (free)">Siri Voice Off</button>
+        <button class="header-btn" id="stopVoiceBtn" title="Stop speaking" style="display:none;">⏹ Stop</button>
         <button class="header-btn" id="voiceSettingsBtn" title="Voice settings">⚙️</button>
         <span id="ttsUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="TTS characters used this month">0 chars</span>
         <span id="sttUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="STT minutes used this month">0 min</span>
@@ -1003,7 +1005,56 @@
       currentAudio.pause();
       currentAudio = null;
     }
+    // Mutually exclusive — turn off browser voice if turning on ElevenLabs
+    if (voiceEnabled && browserVoiceEnabled) {
+      browserVoiceEnabled = false;
+      localStorage.setItem('rhys_browser_voice_enabled', 'false');
+      updateBrowserVoiceToggle();
+    }
   };
+
+  // Browser / Siri voice (Web Speech API)
+  let browserVoiceEnabled = localStorage.getItem('rhys_browser_voice_enabled') === 'true';
+  const browserVoiceToggle = document.getElementById('browserVoiceToggle');
+  const stopVoiceBtn = document.getElementById('stopVoiceBtn');
+
+  function updateBrowserVoiceToggle() {
+    browserVoiceToggle.textContent = browserVoiceEnabled ? 'Siri Voice On' : 'Siri Voice Off';
+    browserVoiceToggle.style.background = browserVoiceEnabled ? 'rgba(77, 208, 225, 0.4)' : '';
+    stopVoiceBtn.style.display = browserVoiceEnabled ? 'inline-block' : 'none';
+  }
+  updateBrowserVoiceToggle();
+
+  function stopAllVoice() {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function playBrowserTTS(text) {
+    if (!browserVoiceEnabled || !text) return;
+    stopAllVoice();
+    const clean = text.replace(/[*_~`#]/g, '').trim();
+    if (!clean) return;
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.rate = 0.95;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
+  }
+
+  browserVoiceToggle.onclick = () => {
+    browserVoiceEnabled = !browserVoiceEnabled;
+    localStorage.setItem('rhys_browser_voice_enabled', browserVoiceEnabled);
+    updateBrowserVoiceToggle();
+    if (!browserVoiceEnabled) stopAllVoice();
+    // Mutually exclusive — turn off ElevenLabs if turning on browser voice
+    if (browserVoiceEnabled && voiceEnabled) {
+      voiceEnabled = false;
+      localStorage.setItem('rhys_voice_enabled', 'false');
+      updateVoiceToggle();
+    }
+  };
+
+  stopVoiceBtn.onclick = () => stopAllVoice();
 
   // Load and display TTS usage
   async function updateTTSUsage() {
@@ -1857,6 +1908,7 @@
                   else if (percent >= 75 && percent < 76) showToast('⚠️ 75% of context used');
                 }
                 if (voiceEnabled && data.full) playTTS(data.full);
+                else if (browserVoiceEnabled && data.full) playBrowserTTS(data.full);
               }
               if (data.error) streamingMsg.finalize("Error: " + data.error);
             } catch (e) { /* skip */ }
@@ -1881,6 +1933,7 @@
       }
 
       if (voiceEnabled && data.text) playTTS(data.text);
+      else if (browserVoiceEnabled && data.text) playBrowserTTS(data.text);
 
     } catch (err) {
       showTyping(false);
