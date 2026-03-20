@@ -1126,17 +1126,19 @@
     }
 
     try {
-      const response = await fetch('/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voice: voiceSettings.voiceId,
-          model: voiceSettings.model,
-          stability: voiceSettings.stability / 100,
-          similarity: voiceSettings.similarity / 100
-        })
-      });
+      // Use browser's built-in TTS (instant, no API delay)
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to use a high-quality iOS voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => sWith('en') && v.name.includes('Premium')) 
+                          || voices.find(v => v.lang.startsWith('en'));
+      
+      if (preferredVoice) utterance.voice = preferredVoice;
+      utterance.rate = voiceSettings.speed / 100;
+      
+      window.speechSynthesis.speak(utterance);
+      return;
 
       if (!response.ok) {
         ttsFailures++;
