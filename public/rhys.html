@@ -1117,6 +1117,7 @@
 
   // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
+    console.log('[AUTO-PLAY] voiceEnabled:', voiceEnabled, 'text length:', text?.length);
     if (!voiceEnabled || !text) return;
 
     // Stop any currently playing audio
