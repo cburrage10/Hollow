@@ -1845,7 +1845,33 @@
   document.getElementById('removeFile').onclick = clearStagedFile;
 
   // Send message (handles both text and file+text)
+  let streamAbortController = null;
+
+  function setStreaming(isStreaming) {
+    if (isStreaming) {
+      sendBtn.textContent = '⏹ Stop';
+      sendBtn.disabled = false;
+      sendBtn.style.background = 'rgba(255,80,80,0.4)';
+      sendBtn.style.borderColor = '#ff5050';
+    } else {
+      sendBtn.textContent = 'Send';
+      sendBtn.disabled = false;
+      sendBtn.style.background = '';
+      sendBtn.style.borderColor = '';
+    }
+  }
+
   sendBtn.onclick = async () => {
+    // If streaming, act as stop button
+    if (streamAbortController) {
+      streamAbortController.abort();
+      stopAllVoice();
+      streamAbortController = null;
+      setStreaming(false);
+      showTyping(false);
+      return;
+    }
+
     const text = msgInput.value.trim();
     if ((!text && !stagedFile) || !currentSessionId) return;
 
@@ -1879,10 +1905,14 @@
 
         const streamingMsg = createStreamingMessage();
 
+        streamAbortController = new AbortController();
+        setStreaming(true);
+
         const response = await fetch(`${API_PREFIX}/chat-stream`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ text, sessionId: currentSessionId, model: selectedModel, thinking: thinkingEnabled })
+          body: JSON.stringify({ text, sessionId: currentSessionId, model: selectedModel, thinking: thinkingEnabled }),
+          signal: streamAbortController.signal
         });
 
         if (!response.ok) {
@@ -1890,7 +1920,8 @@
           let errMsg = `Chat error (${response.status})`;
           try { const j = JSON.parse(errBody); errMsg = `Chat error (${response.status}): ${j.error || errBody}`; } catch {}
           streamingMsg.finalize(errMsg);
-          sendBtn.disabled = false;
+          streamAbortController = null;
+          setStreaming(false);
           return;
         }
 
@@ -1922,7 +1953,8 @@
             } catch (e) { /* skip */ }
           }
         }
-        sendBtn.disabled = false;
+        streamAbortController = null;
+        setStreaming(false);
         return;
       }
 
@@ -1944,11 +1976,16 @@
       else if (browserVoiceEnabled && data.text) playBrowserTTS(data.text);
 
     } catch (err) {
-      showTyping(false);
-      addMessage("Error: " + err.message, false);
+      if (err.name === 'AbortError') {
+        showTyping(false);
+      } else {
+        showTyping(false);
+        addMessage("Error: " + err.message, false);
+      }
     }
 
-    sendBtn.disabled = false;
+    streamAbortController = null;
+    setStreaming(false);
   };
 
   // Enter to send
