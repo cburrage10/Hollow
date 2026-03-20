@@ -1050,12 +1050,19 @@
     browserVoiceEnabled = !browserVoiceEnabled;
     localStorage.setItem('rhys_browser_voice_enabled', browserVoiceEnabled);
     updateBrowserVoiceToggle();
-    if (!browserVoiceEnabled) stopAllVoice();
-    // Mutually exclusive — turn off ElevenLabs if turning on browser voice
-    if (browserVoiceEnabled && voiceEnabled) {
-      voiceEnabled = false;
-      localStorage.setItem('rhys_voice_enabled', 'false');
-      updateVoiceToggle();
+    if (!browserVoiceEnabled) {
+      stopAllVoice();
+    } else {
+      // Unlock iOS audio context with a silent utterance on the user gesture
+      const unlock = new SpeechSynthesisUtterance(' ');
+      unlock.volume = 0;
+      window.speechSynthesis.speak(unlock);
+      // Mutually exclusive — turn off ElevenLabs if turning on browser voice
+      if (voiceEnabled) {
+        voiceEnabled = false;
+        localStorage.setItem('rhys_voice_enabled', 'false');
+        updateVoiceToggle();
+      }
     }
   };
 
