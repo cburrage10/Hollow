@@ -2021,6 +2021,11 @@
     }
   };
 
+  // Refresh page
+  document.getElementById("refreshBtn").onclick = () => {
+    window.location.reload();
+  };
+
   // Clear chat
   document.getElementById("clearBtn").onclick = async () => {
     if (!currentSessionId || !confirm("Clear this chat's history?")) return;
