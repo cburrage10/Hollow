@@ -1513,9 +1513,15 @@
       const playBtn = document.createElement("button");
       playBtn.className = "play-btn";
       playBtn.textContent = "🔊";
-      playBtn.title = "Read aloud";
+      playBtn.title = "Read aloud (ElevenLabs)";
       playBtn.onclick = () => playTTSWithButton(text, playBtn);
       footer.appendChild(playBtn);
+      const siriBtn = document.createElement("button");
+      siriBtn.className = "play-btn";
+      siriBtn.textContent = "🗣️";
+      siriBtn.title = "Read aloud (Siri/browser voice)";
+      siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(text); };
+      footer.appendChild(siriBtn);
     }
 
     msg.appendChild(content);
@@ -1557,10 +1563,15 @@
     const playBtn = document.createElement("button");
     playBtn.className = "play-btn";
     playBtn.textContent = "🔊";
-    playBtn.title = "Read aloud";
+    playBtn.title = "Read aloud (ElevenLabs)";
+    const siriBtn = document.createElement("button");
+    siriBtn.className = "play-btn";
+    siriBtn.textContent = "🗣️";
+    siriBtn.title = "Read aloud (Siri/browser voice)";
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
     footer.appendChild(playBtn);
+    footer.appendChild(siriBtn);
 
     msg.appendChild(content);
     msg.appendChild(footer);
@@ -1596,6 +1607,7 @@
         if (imageUrl) content.appendChild(createImageElement(imageUrl));
         copyBtn.onclick = () => copyToClipboard(fullText);
         playBtn.onclick = () => playTTSWithButton(fullText, playBtn);
+        siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(fullText); };
         chatContainer.scrollTop = chatContainer.scrollHeight;
       },
       getText: () => fullText,
@@ -1818,9 +1830,15 @@
       const playBtn = document.createElement("button");
       playBtn.className = "play-btn";
       playBtn.textContent = "🔊";
-      playBtn.title = "Read aloud";
+      playBtn.title = "Read aloud (ElevenLabs)";
       playBtn.onclick = () => playTTSWithButton(text, playBtn);
       footer.appendChild(playBtn);
+      const siriBtn = document.createElement("button");
+      siriBtn.className = "play-btn";
+      siriBtn.textContent = "🗣️";
+      siriBtn.title = "Read aloud (Siri/browser voice)";
+      siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(text); };
+      footer.appendChild(siriBtn);
     }
 
     msg.appendChild(content);
