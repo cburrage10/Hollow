@@ -485,6 +485,10 @@
     #send:hover { background: #4dd0e1; }
     #send:disabled { background: rgba(77, 208, 225, 0.3); cursor: not-allowed; }
 
+    #stopBtn { background: rgba(255, 68, 68, 0.85); color: white; border: none; display: none; }
+    #stopBtn:hover { background: #ff4444; }
+    #stopBtn.show { display: flex; }
+
     .upload-btn { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(77, 208, 225, 0.3); color: #e8f4f8; }
     .upload-btn:hover { background: rgba(77, 208, 225, 0.2); border-color: #4dd0e1; }
 
@@ -740,13 +744,13 @@
           <option value="claude-opus-4-20250514">Opus 4</option>
         </select>
         <button id="thinkingToggle" title="Show Claude's thinking process">💭 Off</button>
-        <span id="tokenUsage" title="Tokens used this message">📊 0</span>
         <span id="memoryCount">0 memories</span>
         <span id="fileCount">0 files</span>
         <button class="header-btn" id="shareBtn" title="Share this chat">Share</button>
         <button class="header-btn" id="exportBtn" title="Export this chat">Export</button>
         <button class="header-btn" id="filesBtn">Files</button>
         <button class="header-btn" id="memoryBtn">Memories</button>
+        <button class="header-btn" id="refreshBtn" title="Refresh page">🔄</button>
         <button class="header-btn" id="clearBtn">Clear</button>
         <button class="header-btn" id="voiceToggle" title="Toggle Rhys's ElevenLabs voice">Voice Off</button>
         <button class="header-btn" id="browserVoiceToggle" title="Toggle browser/Siri voice (free)">Siri Voice Off</button>
@@ -775,6 +779,7 @@
         <button class="input-btn upload-btn" id="uploadBtn" title="Upload file or image">+</button>
         <textarea id="msg" placeholder="Message Rhys..." rows="1"></textarea>
         <button class="input-btn" id="voiceBtn" title="Voice input">🎤</button>
+        <button class="input-btn" id="stopBtn" title="Stop generating">⏹️</button>
         <button class="input-btn" id="send" title="Send">➤</button>
       </div>
       <input type="file" id="fileInput" accept=".txt,.pdf,.md,.csv,.jpg,.jpeg,.png,.gif,.webp">
@@ -1167,6 +1172,7 @@
 
   // Play TTS for text (auto-play when voice is enabled)
   async function playTTS(text) {
+    console.log('[AUTO-PLAY] voiceEnabled:', voiceEnabled, 'text length:', text?.length);
     if (!voiceEnabled || !text) return;
 
     // Stop any currently playing audio
@@ -1176,17 +1182,19 @@
     }
 
     try {
-      const response = await fetch('/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text,
-          voice: voiceSettings.voiceId,
-          model: voiceSettings.model,
-          stability: voiceSettings.stability / 100,
-          similarity: voiceSettings.similarity / 100
-        })
-      });
+      // Use browser's built-in TTS (instant, no API delay)
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to use a high-quality iOS voice
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice = voices.find(v => sWith('en') && v.name.includes('Premium')) 
+                          || voices.find(v => v.lang.startsWith('en'));
+      
+      if (preferredVoice) utterance.voice = preferredVoice;
+      utterance.rate = voiceSettings.speed / 100;
+      
+      window.speechSynthesis.speak(utterance);
+      return;
 
       if (!response.ok) {
         ttsFailures++;
@@ -2071,6 +2079,11 @@
         showToast('Could not access microphone');
       }
     }
+  };
+
+  // Refresh page
+  document.getElementById("refreshBtn").onclick = () => {
+    window.location.reload();
   };
 
   // Clear chat
