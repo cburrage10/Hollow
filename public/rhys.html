@@ -891,6 +891,14 @@
           </div>
         </div>
         <button id="resetVoiceSettings" style="padding: 8px 16px; background: rgba(77, 208, 225, 0.2); color: #4dd0e1; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 6px; cursor: pointer; font-size: 13px;">Reset to Defaults</button>
+        <hr style="border: none; border-top: 1px solid rgba(77, 208, 225, 0.2); margin: 4px 0;">
+        <div>
+          <label style="display: block; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">🗣️ Browser/Siri Voice</label>
+          <select id="browserVoiceSelect" style="width: 100%; padding: 8px 12px; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 6px; background: rgba(0,0,0,0.3); color: #e8f4f8; font-size: 13px;">
+            <option value="">Loading voices...</option>
+          </select>
+          <div style="font-size: 11px; color: #5a7a8a; margin-top: 4px;">Tap 🗣️ on any message to hear this voice</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1035,14 +1043,47 @@
     if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
+  // Browser voice picker
+  const browserVoiceSelect = document.getElementById('browserVoiceSelect');
+  let selectedBrowserVoice = localStorage.getItem('rhys_browser_voice_name') || '';
+
+  function populateBrowserVoices() {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    browserVoiceSelect.innerHTML = '';
+    voices.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      if (v.name === selectedBrowserVoice) opt.selected = true;
+      browserVoiceSelect.appendChild(opt);
+    });
+    if (!selectedBrowserVoice && voices.length) {
+      selectedBrowserVoice = voices[0].name;
+      browserVoiceSelect.value = selectedBrowserVoice;
+    }
+  }
+
+  populateBrowserVoices();
+  window.speechSynthesis.onvoiceschanged = populateBrowserVoices;
+
+  browserVoiceSelect.onchange = () => {
+    selectedBrowserVoice = browserVoiceSelect.value;
+    localStorage.setItem('rhys_browser_voice_name', selectedBrowserVoice);
+  };
+
   function playBrowserTTS(text) {
-    if (!browserVoiceEnabled || !text) return;
-    stopAllVoice();
     const clean = text.replace(/[*_~`#]/g, '').trim();
     if (!clean) return;
+    stopAllVoice();
     const utter = new SpeechSynthesisUtterance(clean);
     utter.rate = 0.95;
     utter.pitch = 1;
+    if (selectedBrowserVoice) {
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(v => v.name === selectedBrowserVoice);
+      if (match) utter.voice = match;
+    }
     window.speechSynthesis.speak(utter);
   }
 
