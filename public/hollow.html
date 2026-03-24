@@ -685,8 +685,8 @@
       </div>
       <div class="header-right">
         <select id="openaiModelSelect" title="Select OpenAI model">
-          <option value="gpt-5.4">GPT-5.4</option>
-          <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
+          <option value="gpt-5.4-2026-03-05">GPT-5.4</option>
+          <option value="gpt-5.4-mini-2026-03-17">GPT-5.4 Mini</option>
         </select>
         <select id="reasoningSelect" title="Reasoning effort (GPT-5 models)">
           <option value="none">Reason: Off</option>
@@ -831,7 +831,7 @@
   const openaiModelSelect = document.getElementById('openaiModelSelect');
   const reasoningSelect = document.getElementById('reasoningSelect');
   let selectedModel = localStorage.getItem('hollow_model') || 'gpt-5.4';
-  if (['gpt-4.1-mini', 'gpt-4.1', 'gpt-5.2', 'gpt-5-nano'].includes(selectedModel)) selectedModel = 'gpt-5.4';
+  if (['gpt-4.1-mini', 'gpt-4.1', 'gpt-5.2', 'gpt-5-nano', 'gpt-5.4'].includes(selectedModel)) selectedModel = 'gpt-5.4-2026-03-05';
   let selectedReasoning = localStorage.getItem('hollow_reasoning') || 'none';
 
   // Initialize model dropdown
