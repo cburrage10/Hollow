@@ -3502,6 +3502,98 @@ When you learn something important worth remembering, include [SAVE_MEMORY: what
   }
 });
 
+// Telegram webhook for RhysAlexanderBot
+app.post("/rhys/telegram", async (req, res) => {
+  try {
+    res.sendStatus(200); // Acknowledge Telegram immediately
+
+    const message = req.body?.message;
+    if (!message?.text || message.text.startsWith("/")) return;
+
+    const chatId = message.chat.id;
+    const incomingMessage = message.text.trim();
+    const telegramToken = process.env.TELEGRAM_RHYS_BOT_TOKEN;
+
+    if (!telegramToken) {
+      console.error("TELEGRAM_RHYS_BOT_TOKEN not set");
+      return;
+    }
+
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) return;
+
+    const sessionId = `telegram-${chatId}`;
+
+    const [history, memories] = await Promise.all([
+      getRhysChatHistory(sessionId),
+      getRhysMemories(),
+    ]);
+
+    const context = buildRhysContext(history, memories, []);
+
+    const telegramInstructions = `${rhysInstructions}
+
+Today's date is ${getCurrentDate()}.
+
+${context ? "CONTEXT:\n" + context : ""}
+
+IMPORTANT: You are responding via Telegram message. Keep your response conversational and personal. Plain text only — no markdown asterisks, no bullet points. You can use line breaks. Never exceed 2000 characters.
+
+Remember: You have memory of past conversations. Be personal and remember who they are.
+
+MEMORY SAVING:
+When you learn something important worth remembering, include [SAVE_MEMORY: what to remember] in your response. It will be saved and hidden automatically.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 600,
+        system: telegramInstructions,
+        messages: [{ role: "user", content: incomingMessage }],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Rhys Telegram error:", await response.text());
+      return;
+    }
+
+    const data = await response.json();
+    let responseText = data.content?.[0]?.text || "...";
+
+    // Process and strip SAVE_MEMORY tags
+    const memoryMatches = [...responseText.matchAll(/\[SAVE_MEMORY:\s*(.+?)\]/g)];
+    for (const match of memoryMatches) {
+      await addRhysMemory(match[1].trim());
+    }
+    responseText = responseText.replace(/\[SAVE_MEMORY:.*?\]/g, "").trim();
+
+    if (responseText.length > 2000) {
+      responseText = responseText.substring(0, 1997) + "...";
+    }
+
+    await addToRhysHistory(sessionId, "user", incomingMessage);
+    await addToRhysHistory(sessionId, "assistant", responseText);
+    await touchRhysSession(sessionId);
+
+    // Send reply back to Telegram
+    await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: responseText }),
+    });
+
+  } catch (e) {
+    console.error("Rhys Telegram webhook error:", e);
+  }
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
