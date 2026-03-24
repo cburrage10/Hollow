@@ -3248,7 +3248,7 @@ app.post("/openai-tts", async (req, res) => {
     };
 
     // Add voice instructions for gpt-4o-mini-tts model
-    if (model === "gpt-4o-mini-tts" && instructions) {
+    if ((model === "gpt-4o-mini-tts" || model === "gpt-4o-mini-tts-2025-12-15") && instructions) {
       requestBody.instructions = instructions;
     }
 
