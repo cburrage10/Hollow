@@ -933,7 +933,7 @@
   const urlSessionId = urlParams.get('s');
 
   // State
-  let currentSessionId = urlSessionId || localStorage.getItem('rhys_session') || null;
+  let currentSessionId = urlSessionId || localStorage.getItem('rhys_session') || 'rhys-carly-main';
   let sessions = [];
 
   const chatContainer = document.getElementById("chatContainer");

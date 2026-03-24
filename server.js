@@ -3522,7 +3522,7 @@ app.post("/rhys/telegram", async (req, res) => {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     if (!anthropicKey) return;
 
-    const sessionId = `telegram-${chatId}`;
+    const sessionId = `rhys-carly-main`;
 
     const [history, memories] = await Promise.all([
       getRhysChatHistory(sessionId),
