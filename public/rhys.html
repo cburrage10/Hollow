@@ -1230,19 +1230,17 @@
     }
 
     try {
-      // Use browser's built-in TTS (instant, no API delay)
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Try to use a high-quality iOS voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => sWith('en') && v.name.includes('Premium')) 
-                          || voices.find(v => v.lang.startsWith('en'));
-      
-      if (preferredVoice) utterance.voice = preferredVoice;
-      utterance.rate = voiceSettings.speed / 100;
-      
-      window.speechSynthesis.speak(utterance);
-      return;
+      const response = await fetch('/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          voice: voiceSettings.voiceId,
+          model: voiceSettings.model,
+          stability: voiceSettings.stability / 100,
+          similarity: voiceSettings.similarity / 100
+        })
+      });
 
       if (!response.ok) {
         ttsFailures++;
@@ -1253,7 +1251,7 @@
         if (ttsFailures >= 3) {
           voiceEnabled = false;
           localStorage.setItem('rhys_voice_enabled', 'false');
-          updateVoiceButton();
+          updateVoiceToggle();
           const notice = document.createElement('div');
           notice.textContent = `Voice auto-disabled after 3 failures — ${msg}`;
           notice.style.cssText = 'background:#ff6b6b22;border:1px solid #ff6b6b66;color:#ff9999;padding:8px 12px;border-radius:8px;font-size:12px;margin:8px 0;text-align:center;';
