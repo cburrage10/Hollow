@@ -1239,11 +1239,17 @@ TOOLS:
 
     const data = JSON.parse(raw);
 
+    console.log("GPT-5.4 response structure:", JSON.stringify(data).slice(0, 500));
+
     let out = "";
     for (const item of data.output || []) {
       for (const c of item.content || []) {
         if (c.type === "output_text" && c.text) out += c.text;
       }
+    }
+    // Fallback: try choices format (older API format)
+    if (!out && data.choices?.[0]?.message?.content) {
+      out = data.choices[0].message.content;
     }
 
     let response = out || "(No text output)";
