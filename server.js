@@ -923,7 +923,7 @@ User's message: ${message}`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "gpt-4.1-mini",
+          model: "gpt-5.4",
           instructions: fullInstructions,
           input: input,
         }),
@@ -959,7 +959,7 @@ app.post("/chat-stream", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
-    const model = req.body?.model || "gpt-5.2";
+    const model = req.body?.model || "gpt-5.4";
     const reasoning = req.body?.reasoning || "none";
 
     if (!text) return res.json({ text: "" });
@@ -1095,7 +1095,7 @@ app.post("/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
-    const model = req.body?.model || "gpt-5.2";
+    const model = req.body?.model || "gpt-5.4";
     const reasoning = req.body?.reasoning || "none";
 
     if (!text) return res.json({ text: "" });
@@ -1725,7 +1725,7 @@ The user wants to discuss what they're reading with you. Respond naturally and c
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4.1-mini",
+            model: "gpt-5.4",
             instructions: fullContext,
             input: cleanedText || text,
           }),
