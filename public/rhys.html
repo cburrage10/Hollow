@@ -753,8 +753,6 @@
         <button class="header-btn" id="refreshBtn" title="Refresh page">🔄</button>
         <button class="header-btn" id="clearBtn">Clear</button>
         <button class="header-btn" id="voiceToggle" title="Toggle Rhys's ElevenLabs voice">Voice Off</button>
-        <button class="header-btn" id="browserVoiceToggle" title="Toggle browser/Siri voice (free)">Siri Voice Off</button>
-        <button class="header-btn" id="stopVoiceBtn" title="Stop speaking" style="display:none;">⏹ Stop</button>
         <button class="header-btn" id="voiceSettingsBtn" title="Voice settings">⚙️</button>
         <span id="ttsUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="TTS characters used this month">0 chars</span>
         <span id="sttUsage" class="header-btn" style="cursor: default; opacity: 0.7;" title="STT minutes used this month">0 min</span>
@@ -856,7 +854,6 @@
             <option value="eleven_monolingual_v1">Monolingual v1 (English)</option>
           </select>
         </div>
-        <hr style="border: none; border-top: 1px solid rgba(77, 208, 225, 0.2); margin: 4px 0;">
         <div>
           <label style="display: flex; justify-content: space-between; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">
             <span>Stability</span>
@@ -891,12 +888,6 @@
           </div>
         </div>
         <button id="resetVoiceSettings" style="padding: 8px 16px; background: rgba(77, 208, 225, 0.2); color: #4dd0e1; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 6px; cursor: pointer; font-size: 13px;">Reset to Defaults</button>
-        <hr style="border: none; border-top: 1px solid rgba(77, 208, 225, 0.2); margin: 4px 0;">
-        <div>
-          <label style="display: block; margin-bottom: 8px; color: #7a9bb3; font-size: 13px;">🗣️ Browser/Siri Voice</label>
-          <select id="browserVoiceSelect" style="width: 100%; padding: 8px 12px; border: 1px solid rgba(77, 208, 225, 0.3); border-radius: 6px; background: rgba(0,0,0,0.3); color: #e8f4f8; font-size: 13px;">
-            <option value="">Loading voices...</option>
-          </select>
           <div style="font-size: 11px; color: #5a7a8a; margin-top: 4px;">Tap 🗣️ on any message to hear this voice</div>
         </div>
       </div>
@@ -1019,75 +1010,14 @@
       currentAudio = null;
     }
     // Mutually exclusive — turn off browser voice if turning on ElevenLabs
-    if (voiceEnabled && browserVoiceEnabled) {
-      browserVoiceEnabled = false;
-      localStorage.setItem('rhys_browser_voice_enabled', 'false');
-      updateBrowserVoiceToggle();
-    }
   };
 
   // Browser / Siri voice (Web Speech API)
-  let browserVoiceEnabled = localStorage.getItem('rhys_browser_voice_enabled') === 'true';
-  const browserVoiceToggle = document.getElementById('browserVoiceToggle');
-  const stopVoiceBtn = document.getElementById('stopVoiceBtn');
-
-  function updateBrowserVoiceToggle() {
-    browserVoiceToggle.textContent = browserVoiceEnabled ? 'Siri Voice On' : 'Siri Voice Off';
-    browserVoiceToggle.style.background = browserVoiceEnabled ? 'rgba(77, 208, 225, 0.4)' : '';
-    stopVoiceBtn.style.display = browserVoiceEnabled ? 'inline-block' : 'none';
-  }
-  updateBrowserVoiceToggle();
-
   function stopAllVoice() {
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
   }
 
-  // Browser voice picker
-  const browserVoiceSelect = document.getElementById('browserVoiceSelect');
-  let selectedBrowserVoice = localStorage.getItem('rhys_browser_voice_name') || '';
-
-  function populateBrowserVoices() {
-    const voices = window.speechSynthesis.getVoices();
-    if (!voices.length) return;
-    browserVoiceSelect.innerHTML = '';
-    voices.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v.name;
-      opt.textContent = `${v.name} (${v.lang})`;
-      if (v.name === selectedBrowserVoice) opt.selected = true;
-      browserVoiceSelect.appendChild(opt);
-    });
-    if (!selectedBrowserVoice && voices.length) {
-      selectedBrowserVoice = voices[0].name;
-      browserVoiceSelect.value = selectedBrowserVoice;
-    }
-  }
-
-  populateBrowserVoices();
-  window.speechSynthesis.onvoiceschanged = populateBrowserVoices;
-
-  browserVoiceSelect.onchange = () => {
-    selectedBrowserVoice = browserVoiceSelect.value;
-    localStorage.setItem('rhys_browser_voice_name', selectedBrowserVoice);
-  };
-
-  function playBrowserTTS(text) {
-    const clean = text.replace(/[*_~`#]/g, '').trim();
-    if (!clean) return;
-    stopAllVoice();
-    const utter = new SpeechSynthesisUtterance(clean);
-    utter.rate = 0.95;
-    utter.pitch = 1;
-    if (selectedBrowserVoice) {
-      const voices = window.speechSynthesis.getVoices();
-      const match = voices.find(v => v.name === selectedBrowserVoice);
-      if (match) utter.voice = match;
-    }
-    window.speechSynthesis.speak(utter);
-  }
-
-  browserVoiceToggle.onclick = () => {
+  if (false) {
     browserVoiceEnabled = !browserVoiceEnabled;
     localStorage.setItem('rhys_browser_voice_enabled', browserVoiceEnabled);
     updateBrowserVoiceToggle();
@@ -1106,8 +1036,6 @@
       }
     }
   };
-
-  stopVoiceBtn.onclick = () => stopAllVoice();
 
   // Load and display TTS usage
   async function updateTTSUsage() {
@@ -1230,19 +1158,17 @@
     }
 
     try {
-      // Use browser's built-in TTS (instant, no API delay)
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Try to use a high-quality iOS voice
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find(v => sWith('en') && v.name.includes('Premium')) 
-                          || voices.find(v => v.lang.startsWith('en'));
-      
-      if (preferredVoice) utterance.voice = preferredVoice;
-      utterance.rate = voiceSettings.speed / 100;
-      
-      window.speechSynthesis.speak(utterance);
-      return;
+      const response = await fetch('/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          voice: voiceSettings.voiceId,
+          model: voiceSettings.model,
+          stability: voiceSettings.stability / 100,
+          similarity: voiceSettings.similarity / 100
+        })
+      });
 
       if (!response.ok) {
         ttsFailures++;
@@ -1253,7 +1179,7 @@
         if (ttsFailures >= 3) {
           voiceEnabled = false;
           localStorage.setItem('rhys_voice_enabled', 'false');
-          updateVoiceButton();
+          updateVoiceToggle();
           const notice = document.createElement('div');
           notice.textContent = `Voice auto-disabled after 3 failures — ${msg}`;
           notice.style.cssText = 'background:#ff6b6b22;border:1px solid #ff6b6b66;color:#ff9999;padding:8px 12px;border-radius:8px;font-size:12px;margin:8px 0;text-align:center;';
@@ -1557,12 +1483,6 @@
       playBtn.title = "Read aloud (ElevenLabs)";
       playBtn.onclick = () => playTTSWithButton(text, playBtn);
       footer.appendChild(playBtn);
-      const siriBtn = document.createElement("button");
-      siriBtn.className = "play-btn";
-      siriBtn.textContent = "🗣️";
-      siriBtn.title = "Read aloud (Siri/browser voice)";
-      siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(text); };
-      footer.appendChild(siriBtn);
     }
 
     msg.appendChild(content);
@@ -1605,14 +1525,9 @@
     playBtn.className = "play-btn";
     playBtn.textContent = "🔊";
     playBtn.title = "Read aloud (ElevenLabs)";
-    const siriBtn = document.createElement("button");
-    siriBtn.className = "play-btn";
-    siriBtn.textContent = "🗣️";
-    siriBtn.title = "Read aloud (Siri/browser voice)";
     footer.appendChild(timestamp);
     footer.appendChild(copyBtn);
     footer.appendChild(playBtn);
-    footer.appendChild(siriBtn);
 
     msg.appendChild(content);
     msg.appendChild(footer);
@@ -1648,7 +1563,6 @@
         if (imageUrl) content.appendChild(createImageElement(imageUrl));
         copyBtn.onclick = () => copyToClipboard(fullText);
         playBtn.onclick = () => playTTSWithButton(fullText, playBtn);
-        siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(fullText); };
         chatContainer.scrollTop = chatContainer.scrollHeight;
       },
       getText: () => fullText,
@@ -1874,12 +1788,6 @@
       playBtn.title = "Read aloud (ElevenLabs)";
       playBtn.onclick = () => playTTSWithButton(text, playBtn);
       footer.appendChild(playBtn);
-      const siriBtn = document.createElement("button");
-      siriBtn.className = "play-btn";
-      siriBtn.textContent = "🗣️";
-      siriBtn.title = "Read aloud (Siri/browser voice)";
-      siriBtn.onclick = () => { stopAllVoice(); playBrowserTTS(text); };
-      footer.appendChild(siriBtn);
     }
 
     msg.appendChild(content);
@@ -2013,7 +1921,6 @@
                   else if (percent >= 75 && percent < 76) showToast('⚠️ 75% of context used');
                 }
                 if (voiceEnabled && data.full) playTTS(data.full);
-                else if (browserVoiceEnabled && data.full) playBrowserTTS(data.full);
               }
               if (data.error) streamingMsg.finalize("Error: " + data.error);
             } catch (e) { /* skip */ }
@@ -2039,7 +1946,6 @@
       }
 
       if (voiceEnabled && data.text) playTTS(data.text);
-      else if (browserVoiceEnabled && data.text) playBrowserTTS(data.text);
 
     } catch (err) {
       if (err.name === 'AbortError') {
