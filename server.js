@@ -1053,6 +1053,13 @@ TOOLS:
               res.write(`data: ${JSON.stringify({ delta })}\n\n`);
             } else if (parsed.type === 'response.completed') {
               // Stream complete
+            } else if (parsed.choices?.[0]?.delta?.content) {
+              // Fallback: chat completions streaming format
+              const delta = parsed.choices[0].delta.content;
+              fullResponse += delta;
+              res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+            } else if (parsed.type) {
+              console.log("Unknown stream event type:", parsed.type);
             }
           } catch (e) {
             // Skip unparseable chunks
