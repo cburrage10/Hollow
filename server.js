@@ -1058,6 +1058,8 @@ TOOLS:
               const delta = parsed.choices[0].delta.content;
               fullResponse += delta;
               res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+            } else if (parsed.type === 'error') {
+              console.log("OpenAI stream error:", JSON.stringify(parsed));
             } else if (parsed.type) {
               console.log("Unknown stream event type:", parsed.type);
             }
