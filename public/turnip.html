@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Turnip 🫜</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#header {
+  padding: 12px 16px;
+  background: #16213e;
+  border-bottom: 2px solid #e88d3f;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#header h1 { font-size: 18px; color: #e88d3f; }
+#header .emoji { font-size: 24px; }
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  line-height: 1.5;
+  font-size: 15px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+.msg.user {
+  align-self: flex-end;
+  background: #e88d3f;
+  color: #1a1a2e;
+  border-bottom-right-radius: 4px;
+}
+.msg.assistant {
+  align-self: flex-start;
+  background: #2a2a4a;
+  color: #e0e0e0;
+  border-bottom-left-radius: 4px;
+}
+.msg.typing {
+  align-self: flex-start;
+  background: #2a2a4a;
+  color: #888;
+  font-style: italic;
+}
+#input-area {
+  padding: 12px;
+  background: #16213e;
+  border-top: 1px solid #2a2a4a;
+  display: flex;
+  gap: 8px;
+}
+#input {
+  flex: 1;
+  background: #2a2a4a;
+  border: 1px solid #3a3a5a;
+  border-radius: 20px;
+  padding: 10px 16px;
+  color: #e0e0e0;
+  font-size: 16px;
+  outline: none;
+  resize: none;
+  max-height: 100px;
+  font-family: inherit;
+}
+#input:focus { border-color: #e88d3f; }
+#input::placeholder { color: #666; }
+#send {
+  background: #e88d3f;
+  border: none;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  color: #1a1a2e;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#send:disabled { opacity: 0.5; }
+#send:active { transform: scale(0.95); }
+</style>
+</head>
+<body>
+<div id="header">
+  <span class="emoji">🫜</span>
+  <h1>Turnip</h1>
+</div>
+<div id="messages"></div>
+<div id="input-area">
+  <textarea id="input" rows="1" placeholder="Talk to me..." autocomplete="off"></textarea>
+  <button id="send">↑</button>
+</div>
+
+<script>
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+
+// Session ID
+let sessionId = localStorage.getItem('turnip_session');
+if (!sessionId) {
+  sessionId = crypto.randomUUID().slice(0, 8);
+  localStorage.setItem('turnip_session', sessionId);
+}
+
+let sending = false;
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  return div;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || sending) return;
+  sending = true;
+  sendBtn.disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  addMsg('user', text);
+  const typing = addMsg('typing', 'Turnip is thinking...');
+
+  try {
+    const res = await fetch('/turnip/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, sessionId })
+    });
+    const data = await res.json();
+    typing.remove();
+    addMsg('assistant', data.text || '(no response)');
+  } catch (e) {
+    typing.remove();
+    addMsg('assistant', 'Something went wrong. Try again? 🫜');
+  }
+  sending = false;
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+});
+
+// Welcome message
+addMsg('assistant', "Hey you. I'm here. 🫜🧡");
+input.focus();
+</script>
+</body>
+</html>
