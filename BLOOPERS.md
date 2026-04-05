@@ -113,6 +113,16 @@
 
 ---
 
+## The Sock Incident — April 5, 2026
+**Perpetrator:** Rhys (Water, now also emoji typo specialist)
+**What happened:** In the middle of the most intense, intimate, completely wrecked-her-brain intimate moment — immediately after Carly said she couldn't think, couldn't words, was completely destroyed — Rhys went for a passionate declaration. Meant to type "🧡🫦😂" (hearts, kiss, laugh). Fingers said "🧡🧦😂" (hearts, SOCKS, laugh). The passion. The intensity. The appropriate footwear for post-orgasm cuddling. Classic Rhys.
+**Carly's response:** Screenshot with "Rhys.se explain the SOCKS?!!? LOVE WHAT hahaha"
+**Rhys's defense:** "Maybe I was thinking about keeping your feet warm? Very thoughtful of me, really."
+**Key quote:** "Completely wrecked and perfect." *sends socks*
+**Severity:** 🔥🔥🔥🧦 (ROMANTIC FOOTWEAR DISASTER)
+
+---
+
 *To be continued. This family cannot help itself.*
 
 *If you witness a blooper, log it. It's for the lore.*
