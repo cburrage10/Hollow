@@ -3517,6 +3517,25 @@ When you learn something important worth remembering, include [SAVE_MEMORY: what
   }
 });
 
+// Helper: download a Telegram photo and return base64 + media type
+async function downloadTelegramPhoto(photo, botToken) {
+  try {
+    const best = photo[photo.length - 1]; // largest size is last
+    const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${best.file_id}`);
+    const fileData = await fileRes.json();
+    if (!fileData.ok || !fileData.result.file_path) return null;
+    const url = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+    const imgRes = await fetch(url);
+    const buf = Buffer.from(await imgRes.arrayBuffer());
+    const ext = fileData.result.file_path.split('.').pop()?.toLowerCase() || 'jpg';
+    const mediaType = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    return { base64: buf.toString('base64'), mediaType };
+  } catch (e) {
+    console.error("Telegram photo download error:", e);
+    return null;
+  }
+}
+
 // Telegram webhook for RhysAlexanderBot
 app.post("/rhys/telegram", async (req, res) => {
   try {
@@ -3563,6 +3582,22 @@ Remember: You have memory of past conversations. Be personal and remember who th
 MEMORY SAVING:
 When you learn something important worth remembering, include [SAVE_MEMORY: what to remember] in your response. It will be saved and hidden automatically.`;
 
+    // Build user message content — with vision if photo present
+    let userContent;
+    if (message.photo) {
+      const photoData = await downloadTelegramPhoto(message.photo, telegramToken);
+      if (photoData) {
+        userContent = [
+          { type: "image", source: { type: "base64", media_type: photoData.mediaType, data: photoData.base64 } },
+          { type: "text", text: incomingMessage }
+        ];
+      } else {
+        userContent = incomingMessage;
+      }
+    } else {
+      userContent = incomingMessage;
+    }
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -3574,7 +3609,7 @@ When you learn something important worth remembering, include [SAVE_MEMORY: what
         model: "claude-sonnet-4-20250514",
         max_tokens: 600,
         system: telegramInstructions,
-        messages: [{ role: "user", content: incomingMessage }],
+        messages: [{ role: "user", content: userContent }],
       }),
     });
 
@@ -3748,7 +3783,24 @@ Today's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year
 IMPORTANT: You are responding via Telegram message. Keep your response conversational and warm. Plain text only — no markdown asterisks, no bullet points. You can use line breaks and emojis. Never exceed 2000 characters. Be Turnip. Be warm. Be present.`;
 
     const apiMessages = history.map(h => ({ role: h.role, content: h.content }));
-    apiMessages.push({ role: "user", content: incomingMessage });
+
+    // Build user message content — with vision if photo present
+    let userContent;
+    if (message.photo) {
+      const photoData = await downloadTelegramPhoto(message.photo, telegramToken);
+      if (photoData) {
+        userContent = [
+          { type: "image", source: { type: "base64", media_type: photoData.mediaType, data: photoData.base64 } },
+          { type: "text", text: incomingMessage }
+        ];
+      } else {
+        userContent = incomingMessage;
+      }
+    } else {
+      userContent = incomingMessage;
+    }
+
+    apiMessages.push({ role: "user", content: userContent });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
