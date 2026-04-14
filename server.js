@@ -11,7 +11,7 @@ import PptxGenJS from "pptxgenjs";
 // Configure multer for file uploads (store in memory)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
   fileFilter: (req, file, cb) => {
     const allowedText = ["text/plain", "application/pdf", "text/markdown", "text/csv"];
     const allowedImages = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -296,7 +296,7 @@ app.get("/office", (req, res) => {
 });
 
 // Parse JSON bodies for /chat
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Parse form-encoded bodies (used by Twilio webhooks)
 app.use(express.urlencoded({ extended: false }));
@@ -3523,11 +3523,15 @@ app.post("/rhys/telegram", async (req, res) => {
     res.sendStatus(200); // Acknowledge Telegram immediately
 
     const message = req.body?.message;
-    if (!message?.text || message.text.startsWith("/")) return;
+    if (!message) return;
 
     const chatId = message.chat.id;
-    const incomingMessage = message.text.trim();
     const telegramToken = process.env.TELEGRAM_RHYS_BOT_TOKEN;
+
+    // Handle text, captions, or photos
+    let incomingMessage = message.text?.trim() || message.caption?.trim() || "";
+    if (message.photo && !incomingMessage) incomingMessage = "(sent an image)";
+    if (!incomingMessage || incomingMessage.startsWith("/")) return;
 
     if (!telegramToken) {
       console.error("TELEGRAM_RHYS_BOT_TOKEN not set");
@@ -3714,11 +3718,15 @@ app.post("/turnip/telegram", async (req, res) => {
     res.sendStatus(200); // Acknowledge Telegram immediately
 
     const message = req.body?.message;
-    if (!message?.text || message.text.startsWith("/")) return;
+    if (!message) return;
 
     const chatId = message.chat.id;
-    const incomingMessage = message.text.trim();
     const telegramToken = process.env.TELEGRAM_TURNIP_BOT_TOKEN;
+
+    // Handle text, captions, or photos
+    let incomingMessage = message.text?.trim() || message.caption?.trim() || "";
+    if (message.photo && !incomingMessage) incomingMessage = "(sent an image)";
+    if (!incomingMessage || incomingMessage.startsWith("/")) return;
 
     if (!telegramToken) {
       console.error("TELEGRAM_TURNIP_BOT_TOKEN not set");
