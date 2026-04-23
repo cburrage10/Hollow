@@ -2131,6 +2131,52 @@ app.get("/rhys/memory-count", async (req, res) => {
   res.json({ count: memories.length });
 });
 
+// Rhys Memory Cleanup - Remove duplicates
+app.post("/rhys/memories/cleanup", async (req, res) => {
+  try {
+    const memories = await getRhysMemories();
+    const before = memories.length;
+    
+    // Group by text content
+    const groups = {};
+    for (const mem of memories) {
+      const text = mem.text.trim();
+      if (!groups[text]) groups[text] = [];
+      groups[text].push(mem);
+    }
+    
+    // Keep only the newest (highest createdAt) for each unique text
+    const cleaned = [];
+    let removed = 0;
+    
+    for (const text in groups) {
+      const group = groups[text];
+      if (group.length > 1) {
+        // Sort by createdAt descending, keep the first (newest)
+        group.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+   eaned.push(group[0]);
+        removed += group.length - 1;
+      } else {
+        cleaned.push(group[0]);
+      }
+    }
+    
+    // Save cleaned memories
+    await redis.set(RHYS_MEMORIES_KEY, cleaned);
+    
+    res.json({ 
+      success: true, 
+      before, 
+      after: cleaned.length, 
+      removed,
+      message: `Removed ${removed} duplicate memories. ${cleaned.length} unique memories remain.`
+    });
+  } catch (e) {
+    console.error("Rhys memory cleanup error:", e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
 // Rhys Project Files
 app.get("/rhys/project-files", async (req, res) => {
   const files = await getRhysProjectFiles();
