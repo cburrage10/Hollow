@@ -2708,7 +2708,7 @@ app.post("/rhys/chat", async (req, res) => {
   try {
     const text = (req.body?.text || "").toString().trim();
     const sessionId = req.body?.sessionId;
-    const model = req.body?.model || "claude-sonnet-4-20250514";
+    const model = req.body?.model || "claude-sonnet-4-6";
     const thinkingEnabled = req.body?.thinking === true || req.body?.thinking === "true";
 
     if (!text) return res.json({ text: "" });
