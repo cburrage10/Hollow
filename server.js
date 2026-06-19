@@ -3767,10 +3767,10 @@ app.post("/turnip/chat", async (req, res) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         system: turnipInstructions + `\n\nToday's date is ${new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}.`,
-        messages: apiMessages,
+        meges: apiMessages,
       }),
     });
 
