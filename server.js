@@ -3648,11 +3648,11 @@ When you learn something important worth remembering, include [SAVE_MEMORY: what
       method: "POST",
       headers: {
         "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
+        "anthroversion": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 600,
         system: telegramInstructions,
         messages: [{ role: "user", content: userContent }],
