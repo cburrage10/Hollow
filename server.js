@@ -3849,14 +3849,13 @@ IMPORTANT: You are responding via Telegram message. Keep your response conversat
     apiMessages.push({ role: "user", content: userContent });
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
+      method: "POST",aders: {
         "x-api-key": anthropicKey,
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 600,
         system: telegramTurnipInstructions,
         messages: apiMessages,
